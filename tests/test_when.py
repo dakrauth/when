@@ -1,4 +1,4 @@
-import os, sys
+import os, sys, time
 from datetime import datetime
 from unittest.mock import patch
 import pytest
@@ -36,11 +36,17 @@ def test_main(capsys):
         when_main()
         captured = capsys.readouterr()
         output = captured.out
-        assert '2019-02-24 14:00:00-0500 (EST) 055d07w America/New_York\n' == output
+        if 'UTC' in output:
+            assert '2019-02-24 19:00:00+0000 (UTC) 055d07w Etc/UTC\n' == output
+        else:
+            assert '2019-02-24 14:00:00-0500 (EST) 055d07w America/New_York\n' == output
 
     argv = 'when -z CST Feb 24 2pm America/New_York'.split()
     with patch.object(sys, 'argv', argv):
         when_main()
         captured = capsys.readouterr()
         output = captured.out
-        assert '2019-02-24 13:00:00-0600 (CST) 055d07w US/Central\n' == output
+        if 'UTC' in output:
+            assert '2019-02-24 18:00:00-0600 (UTC) 055d07w Etc/UTC\n' == output
+        else:
+            assert '2019-02-24 13:00:00-0600 (CST) 055d07w US/Central\n' == output

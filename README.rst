@@ -1,6 +1,10 @@
 when 🌐🕐
 =========
 
+.. image:: https://travis-ci.org/dakrauth/when.svg?branch=master
+    :target: https://travis-ci.org/dakrauth/when
+
+
 Usage
 -----
 
@@ -67,4 +71,7 @@ Requirements Python 3.6+
     $ . venv/bin/activate
     $ pip install .
     $ when --help
+    $ pip install tox
+    $ tox
+
 
