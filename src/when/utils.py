@@ -26,10 +26,10 @@ def all_zones():
     return sorted(list(pytz.all_timezones))
 
 
-def find_city(name):
+def find_city(name, zip_file_name=None):
     bits = name.rsplit(',', 1)
     name, co = bits if len(bits) == 2 else (bits[0], None)
-    result = get_common().get(name.lower(), None)
+    result = get_common(zip_file_name).get(name.lower(), None)
     if result:
         if co:
             co = co.lower()
@@ -38,12 +38,10 @@ def find_city(name):
             return list(map(itemgetter(0), result))
 
 
-def parse_cities(fname):
+def generate_cities_pyzip(data, fname_out=None):
+    fname_out = fname_out or 'common.zip'
     if not unidecode:
         logger.warning('You should install Unidecode>=1.0.23')
-
-    with open(fname) as fp:
-        data = fp.read()
 
     lines = [line.split('\t') for line in data.splitlines()]
     d = defaultdict(list)
@@ -56,7 +54,7 @@ def parse_cities(fname):
             if city2 != city:
                 d[city2].append([tz, co])
 
-    with ZipFile('common.zip', 'w') as z:
+    with ZipFile(fname_out, 'w') as z:
         z.writestr(
             'common.py',
             'common=(\n{}\n)'.format(pformat(dict(d), indent=0)),
@@ -64,5 +62,14 @@ def parse_cities(fname):
         )
 
 
+def main():
+    nargs = len(sys.argv)
+    fname = sys.argv[1] if nargs > 1 else 'query_result.tsv'
+    with open(fname_in) as fp:
+        data = fp.read()
+
+    generate_cities_pyzip(data, sys.argv[2] if nargs > 2 else None)
+
+
 if __name__ == '__main__':
-    parse_cities(sys.argv[1] if len(sys.argv) > 1 else 'query_result.tsv')
+    main()

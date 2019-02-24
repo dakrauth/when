@@ -1,6 +1,7 @@
 import os
 import re
 import sys
+import fnmatch
 import logging
 
 from datetime import datetime
@@ -77,7 +78,14 @@ class When:
         if isinstance(obj, str):
             obj = obj.split(',')
 
-        return [self.tzinfos[o] for o in obj]
+        tzs = []
+        for o in obj:
+            matches = fnmatch.filter(self.tzinfos, o)
+            if matches:
+                tzs.extend(self.tzinfos[m] for m in matches)
+            else:
+                logger.warning('{} time zone subset not found'.format(o))
+        return tzs
 
     def results(self, dt, tzs):
         return [dt.astimezone(tz) for tz in tzs]

@@ -56,7 +56,7 @@ def get_parser():
 
     parser.add_argument(
         '-v',
-        '--verbose',
+        '--verbosity',
         action='count',
         default=0,
         help='Verbosity (-v, -vv, etc)'
@@ -72,6 +72,16 @@ def get_parser():
     return parser
 
 
+def log_config(verbosity):
+    log_level = logging.WARNING
+    log_format = '%(levelname)s: %(message)s'
+    if verbosity:
+        log_format = '%(levelname)s:%(name)s:%(lineno)d: %(message)s'
+        log_level = logging.DEBUG if verbosity > 1 else logging.INFO
+
+    logging.basicConfig(level=log_level, format=log_format)
+
+
 def main(parser=None):
     if '--pdb' in sys.argv:
         sys.argv.remove('--pdb')
@@ -84,9 +94,7 @@ def main(parser=None):
     parser = parser or get_parser()
     args = parser.parse_args()
 
-    if args.verbose:
-        logging.basicConfig(level=logging.DEBUG if args.verbose > 1 else logging.INFO)
-
+    log_config(args.verbosity)
     ts = args.timestamp
     tzstrs = args.tzstr.split(',') if args.tzstr else None
     if not isinstance(ts, str):
