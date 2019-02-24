@@ -20,7 +20,8 @@ Usage
     optional arguments:
       -h, --help            show this help message and exit
       -z TZSTR, --zone TZSTR
-                            Timezone to convert the timestamp to
+                            Timezone to convert the timestamp to (globbing
+                            patterns allowed)
       -f FORMATTING, --format FORMATTING
                             Output formatting. Default: %Y-%m-%d %H:%M:%S%z (%Z)
                             %jd%Ww %K, where %K is timezone long name
@@ -57,6 +58,19 @@ Example
     $ when -z US/Hawaii Jun 7
     2019-06-06 18:00:00-1000 (HST) 157d22w US/Hawaii
 
+    $ when -z "US/*" Feb 29 2020 6pm
+    2020-02-29 14:00:00-0900 (AKST) 060d08w US/Alaska
+    2020-02-29 13:00:00-1000 (HST) 060d08w US/Aleutian
+    2020-02-29 16:00:00-0700 (MST) 060d08w US/Arizona
+    2020-02-29 17:00:00-0600 (CST) 060d08w US/Central
+    2020-02-29 18:00:00-0500 (EST) 060d08w US/East-Indiana
+    2020-02-29 18:00:00-0500 (EST) 060d08w US/Eastern
+    2020-02-29 13:00:00-1000 (HST) 060d08w US/Hawaii
+    2020-02-29 17:00:00-0600 (CST) 060d08w US/Indiana-Starke
+    2020-02-29 18:00:00-0500 (EST) 060d08w US/Michigan
+    2020-02-29 16:00:00-0700 (MST) 060d08w US/Mountain
+    2020-02-29 15:00:00-0800 (PST) 060d08w US/Pacific
+    2020-02-29 12:00:00-1100 (SST) 060d08w US/Samoa
 
 Develop
 -------

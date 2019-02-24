@@ -25,7 +25,7 @@ def get_parser():
         '--zone',
         dest='tzstr',
         default='',
-        help='Timezone to convert the timestamp to'
+        help='Timezone to convert the timestamp to (globbing patterns allowed)'
     )
 
     parser.add_argument(
