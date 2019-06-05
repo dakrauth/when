@@ -7,13 +7,23 @@ from zipfile import ZipFile, ZIP_DEFLATED
 from operator import itemgetter
 from zipimport import zipimporter
 
-import pytz
+from dateutil.tz import tzfile
+from dateutil.zoneinfo import get_zonefile_instance
+
 try:
     from unidecode import unidecode
 except ImportError:
     unidecode = None
 
 logger = logging.getLogger(__name__)
+
+
+def get_timezone_db_name(tz):
+    return tz._filename.rsplit('/zoneinfo/', 1)[1] if (
+        isinstance(tz, tzfile) and
+        hasattr(tz, '_filename') and
+        '/zoneinfo/' in tz._filename
+    ) else None
 
 
 def get_common(zip_file_name=None):
@@ -23,7 +33,8 @@ def get_common(zip_file_name=None):
 
 
 def all_zones():
-    return sorted(list(pytz.all_timezones))
+    zi = get_zonefile_instance()
+    return sorted(zi.zones)
 
 
 def find_city(name, zip_file_name=None):

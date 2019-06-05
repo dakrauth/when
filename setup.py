@@ -27,7 +27,7 @@ setup(
     package_dir={'': 'src'},
     include_package_data=True,
     entry_points={'console_scripts': ['when = when.__main__:main',]},
-    install_requires=['python-dateutil>=2.8.0', 'pytz>=2018.9'],
+    install_requires=['python-dateutil>=2.8.0'],
     classifiers=[
         'Development Status :: 1 - Alpha',
         'Environment :: Console',

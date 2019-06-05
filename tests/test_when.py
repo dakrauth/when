@@ -2,7 +2,7 @@ import os, sys, time
 from datetime import datetime
 from unittest.mock import patch
 import pytest
-import pytz
+from dateutil.tz import gettz
 
 from when.when import When
 from when import utils
@@ -26,7 +26,7 @@ def test_generate_cities_pyzip():
 def test_when():
     wh = When()
     result = wh.convert('Feb 24 2pm America/New_York')
-    expect = pytz.timezone('America/New_York').localize(datetime(2019, 2, 24, 14))
+    expect = datetime(2019, 2, 24, 14, tzinfo=gettz('America/New_York'))
     assert result [0] == expect
 
 

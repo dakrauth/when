@@ -6,12 +6,14 @@ import logging
 
 from datetime import datetime
 from dateutil.parser import parse
-import pytz
+from dateutil.tz import gettz
 
+from . import utils
 
 logger = logging.getLogger(__name__)
+all_timezones = utils.all_zones()
 tz_regex = re.compile(
-    '({})'.format('|'.join([re.escape(a) for a in pytz.all_timezones]))
+    '({})'.format('|'.join([re.escape(a) for a in all_timezones]))
 )
 
 DEFAULT_FORMAT = '%Y-%m-%d %H:%M:%S%z (%Z) %jd%Ww %K'
@@ -29,8 +31,9 @@ class Formatter:
         self.format = format or DEFAULT_FORMAT
 
     def __call__(self, dt):
-        format = self.format.replace('%K', dt.tzinfo.zone if dt.tzinfo else 'N/A')
-        return dt.strftime(format)
+        tzname = utils.get_timezone_db_name(dt.tzinfo) or '' if dt.tzinfo else ''
+        format = self.format.replace('%K', tzname)
+        return dt.strftime(format).strip()
 
 
 class When:
@@ -44,17 +47,17 @@ class When:
         if tz_aliases:
             aliases.update(tz_aliases)
 
-        tzs = {z: pytz.timezone(z) for z in pytz.all_timezones}
+        tzs = {z: gettz(z) for z in all_timezones}
         tzs.update({
-            k: pytz.timezone(aliases[k])
+            k: gettz(aliases[k])
             for k in aliases
         })
         self.tzinfos = tzs
 
-        if local_zone is None:
+        if local_zone is None and os.path.exists('/etc/localtime'):
             link = os.readlink("/etc/localtime")
             tzname = link[link.rfind("zoneinfo/") + 9:]
-            local_zone = pytz.timezone(tzname)
+            local_zone = gettz(tzname)
         self.local_zone = local_zone
 
     def extract_tz(self, ts_str):
@@ -62,7 +65,7 @@ class When:
         if m:
             tz_name = ts_str[slice(*m.span())]
             ts_str = ts_str.replace(tz_name, '').strip()
-            tz = pytz.timezone(tz_name)
+            tz = gettz(tz_name)
         else:
             tz = None
 
@@ -107,10 +110,10 @@ class When:
         logger.info('WHEN 1: %s', self.formatter(result))
 
         if ex_tz:
-            result = ex_tz.localize(result)
+            result = result.astimezone(ex_tz)
         else:
             if not result.tzinfo:
-                result = self.local_zone.localize(result)
+                result = result.astimezone(self.local_zone)
 
         logger.info('WHEN 2: %s', self.formatter(result))
 
