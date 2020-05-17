@@ -4,7 +4,7 @@ import sys
 import argparse
 import logging
 
-from .when import When, DEFAULT_FORMAT
+from .core import When, DEFAULT_FORMAT
 from . import VERSION
 from . import utils
 
@@ -29,6 +29,15 @@ def get_parser():
         help='Timezone to convert the timestamp to (globbing patterns allowed)'
     )
 
+    parser.add_argument(
+        '-i',
+        '--zone-info',
+        dest='zone_info',
+        action='store_true',
+        default=False,
+        help='Just show details for a given timezone'
+    )
+    
     parser.add_argument(
         '-f',
         '--format',
@@ -116,8 +125,12 @@ def main(parser=None):
             return
 
     when = When(formatter=args.formatting)
-    for result in when.convert(ts, tzstrs):
-        print(when.formatter(result))
+    if args.zone_info:
+        res = when.zone_info(ts)
+        print('\n'.join([f'{k}: {v}' for (k, v) in res]))
+    else:
+        for result in when.convert(ts, tzstrs):
+            print(when.formatter(result))
 
 
 if __name__ == '__main__':
