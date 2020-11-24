@@ -79,6 +79,7 @@ def get_parser():
         version='%(prog)s (version {version})'.format(version=VERSION)
     )
 
+    parser.add_argument('--pdb', dest='pdb', action='store_true', default=False)
     return parser
 
 

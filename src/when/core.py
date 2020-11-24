@@ -13,15 +13,19 @@ from . import utils
 logger = logging.getLogger(__name__)
 
 DEFAULT_FORMAT = '%Y-%m-%d %H:%M:%S%z (%Z) %jd%Ww %K'
-ALIASES = {
-    'PST': 'US/Pacific',
-    'MST': 'US/Mountain',
-    'CST': 'US/Central',
-    'EST': 'US/Eastern',
-    'CEST': 'CET',
-    'WEST': 'WET',
-    'EEST': 'EET',
-}
+ALIASES = dict(
+    CEST='CET',
+    WEST='WET',
+    EEST='EET',
+    **{
+        f'{i}{j}T': v for i,v in [
+            ['P', 'US/Pacific'],
+            ['M', 'US/Mountain'],
+            ['C', 'US/Central'],
+            ['E', 'US/Eastern'],
+        ] for j in ['', 'D', 'S']
+    }
+)
 
 
 class Formatter:
@@ -45,7 +49,7 @@ class When:
 
         offsets = [f'UTC{i}' for i in range(-12, 13) if i]
         self.aliases = ALIASES.copy()
-        self.aliases.update({o: None for o in offsets})
+        self.aliases.update({o: o for o in offsets})
         if tz_aliases:
             self.aliases.update(tz_aliases)
 
@@ -61,9 +65,7 @@ class When:
         self.local_zone = local_zone
 
     def normalize_tzname(self, name):
-        if name in self.aliases:
-            name = self.aliases[name] or name
-        return name
+        return self.aliases.get(name, name)
 
     def get_tz(self, name):
         name = self.normalize_tzname(name)
@@ -119,7 +121,10 @@ class When:
         for o in obj:
             matches = fnmatch.filter(self.tz_keys, o)
             if matches:
-                tzs.extend(self.get_tz(m) for m in matches)
+                for m in matches:
+                    tz = self.get_tz(m)
+                    if tz not in tzs:
+                        tzs.append(tz)
             else:
                 logger.warning('{} time zone subset not found'.format(o))
         return tzs
