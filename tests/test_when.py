@@ -4,7 +4,7 @@ from unittest.mock import patch
 import pytest
 from dateutil.tz import gettz
 
-from when.when import When
+from when.core import When
 from when import utils
 from when.__main__ import main as when_main
 
@@ -25,23 +25,13 @@ def test_generate_cities_pyzip():
 
 def test_when():
     wh = When()
-    result = wh.convert('Feb 24 2pm America/New_York')
+    result = wh.convert('Feb 24, 2019 2pm America/New_York')
     expect = datetime(2019, 2, 24, 14, tzinfo=gettz('America/New_York'))
-    assert result [0] == expect
+    assert result[0] == expect
 
 
 def test_main(capsys):
-    argv = 'when Feb 24 2pm America/New_York'.split()
-    with patch.object(sys, 'argv', argv):
-        when_main()
-        captured = capsys.readouterr()
-        output = captured.out
-        if 'UTC' in output:
-            assert '2019-02-24 19:00:00+0000 (UTC) 055d07w Etc/UTC\n' == output
-        else:
-            assert '2019-02-24 14:00:00-0500 (EST) 055d07w America/New_York\n' == output
-
-    argv = 'when -z CST Feb 24 2pm America/New_York'.split()
+    argv = 'when -z CST Feb 24, 2019 2pm America/New_York'.split()
     with patch.object(sys, 'argv', argv):
         when_main()
         captured = capsys.readouterr()
@@ -50,3 +40,20 @@ def test_main(capsys):
             assert '2019-02-24 18:00:00-0600 (UTC) 055d07w Etc/UTC\n' == output
         else:
             assert '2019-02-24 13:00:00-0600 (CST) 055d07w US/Central\n' == output
+
+    orig_tz = os.getenv('TZ')
+    os.environ['TZ'] = 'EST'
+    time.tzset()
+    argv = 'when Feb 24, 2019 2pm America/New_York'.split()
+    with patch.object(sys, 'argv', argv):
+        when_main()
+        captured = capsys.readouterr()
+        output = captured.out
+        if 'UTC' in output:
+            assert '2019-02-24 19:00:00+0000 (UTC) 055d07w Etc/UTC\n' == output
+        else:
+            assert '2019-02-24 14:00:00-0500 (EST) 055d07w EST\n' == output
+
+    if orig_tz:
+        os.environ['TZ'] = orig_tz
+        time.tzset()

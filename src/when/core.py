@@ -1,6 +1,7 @@
 import os
 import re
 import sys
+import time
 import fnmatch
 import logging
 
@@ -58,10 +59,11 @@ class When:
             '({})'.format('|'.join([re.escape(a) for a in self.tz_keys]))
         )
 
-        if local_zone is None and os.path.exists('/etc/localtime'):
-            link = os.readlink("/etc/localtime")
-            tzname = link[link.rfind("zoneinfo/") + 9:]
-            local_zone = gettz(tzname)
+        if local_zone is None:
+            try:
+                local_zone = gettz(time.tzname[0])
+            except:
+                pass
         self.local_zone = local_zone
 
     def normalize_tzname(self, name):

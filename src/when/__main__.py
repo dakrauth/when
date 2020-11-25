@@ -1,8 +1,11 @@
 
 #!/usr/bin/env python
 import sys
-import argparse
 import logging
+import argparse
+from datetime import datetime
+
+from dateutil.parser import parse
 
 from .core import When, DEFAULT_FORMAT
 from . import VERSION
@@ -65,6 +68,15 @@ def get_parser():
     )
 
     parser.add_argument(
+        '-d',
+        '--delta',
+        dest='delta',
+        action='store_true',
+        default=False,
+        help='Show time delta from given point in time'
+    )
+
+    parser.add_argument(
         '-v',
         '--verbosity',
         action='count',
@@ -91,6 +103,26 @@ def log_config(verbosity):
         log_level = logging.DEBUG if verbosity > 1 else logging.INFO
 
     logging.basicConfig(level=log_level, format=log_format)
+
+
+def date_delta(dt):
+    dt = dt.date()
+    now = datetime.now().date()
+    if dt > now:
+        dt, now = now, dt
+
+    td = now - dt
+    days = td.days
+    print('{} day{}'.format(days, 's' if days != 1 else ''))
+    if days > 7:
+        weeks = days // 7
+        days = days % 7
+        print('{} week{} {} day{}'.format(
+            weeks,
+            's' if weeks != 1 else '',
+            days % 7,
+            's' if days > 1 else ''
+        ))
 
 
 def main(parser=None):
@@ -124,6 +156,15 @@ def main(parser=None):
         if not tzstrs:
             print('Could not find city: {}'.format(args.city))
             return
+
+    elif args.delta:
+        if not ts:
+            print('Previous date required for delta')
+            return
+
+        date_delta(parse(ts))
+        return
+
 
     when = When(formatter=args.formatting)
     if args.zone_info:
