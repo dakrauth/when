@@ -1,6 +1,4 @@
-import os
 import re
-import sys
 import time
 import fnmatch
 import logging
@@ -19,7 +17,7 @@ ALIASES = dict(
     WEST='WET',
     EEST='EET',
     **{
-        f'{i}{j}T': v for i,v in [
+        f'{i}{j}T': v for i, v in [
             ['P', 'US/Pacific'],
             ['M', 'US/Mountain'],
             ['C', 'US/Central'],
@@ -62,7 +60,7 @@ class When:
         if local_zone is None:
             try:
                 local_zone = gettz(time.tzname[0])
-            except:
+            except Exception:
                 pass
         self.local_zone = local_zone
 
@@ -135,7 +133,7 @@ class When:
         return [dt.astimezone(tz) for tz in tzs]
 
     def convert(self, ts_str=None, as_tzs=None):
-        logger.info(f'GOT string {ts_str}, zones: {as_tzs}')
+        logger.debug(f'GOT string {ts_str}, zones: {as_tzs}')
         as_tzs = self.get_tzs(as_tzs)
 
         if not ts_str:
@@ -148,14 +146,5 @@ class When:
         # ts_str, ex_tz = self.extract_tz(ts_str)
 
         result = self.parse(ts_str)
-        logger.info('WHEN 1: %s', self.formatter(result))
-
-        #if ex_tz:
-        #    result = result.replace(tzinfo=ex_tz)
-        #else:
-        #    if not result.tzinfo:
-        #        result = result.replace(tzinfo=self.local_zone)
-
-        logger.info('WHEN 2: %s', self.formatter(result))
-
+        logger.debug('WHEN 1: %s', self.formatter(result))
         return self.results(result, as_tzs)

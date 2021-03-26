@@ -44,7 +44,7 @@ def find_city(name, zip_file_name=None):
     if result:
         if co:
             co = co.lower()
-            return [a for a,b in result if b == co]
+            return [a for a, b in result if b == co]
         else:
             return list(map(itemgetter(0), result))
 
@@ -76,7 +76,7 @@ def generate_cities_pyzip(data, fname_out=None):
 def main():
     nargs = len(sys.argv)
     fname = sys.argv[1] if nargs > 1 else 'query_result.tsv'
-    with open(fname_in) as fp:
+    with open(fname) as fp:
         data = fp.read()
 
     generate_cities_pyzip(data, sys.argv[2] if nargs > 2 else None)

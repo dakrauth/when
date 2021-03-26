@@ -1,8 +1,8 @@
 when 🌐🕐
 =========
 
-.. image:: https://travis-ci.org/dakrauth/when.svg?branch=master
-    :target: https://travis-ci.org/dakrauth/when
+.. image:: https://github.com/dakrauth/when/actions/workflows/test.yml/badge.svg
+    :target: https://github.com/dakrauth/when
 
 
 Usage
@@ -75,7 +75,7 @@ Example
 Develop
 -------
 
-Requirements Python 3.6+
+Requirements Python 3.7+
 
 .. code:: bash
 

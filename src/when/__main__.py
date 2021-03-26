@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python
 import sys
 import logging
@@ -40,7 +39,7 @@ def get_parser():
         default=False,
         help='Just show details for a given timezone'
     )
-    
+
     parser.add_argument(
         '-f',
         '--format',
@@ -164,7 +163,6 @@ def main(parser=None):
 
         date_delta(parse(ts))
         return
-
 
     when = When(formatter=args.formatting)
     if args.zone_info:

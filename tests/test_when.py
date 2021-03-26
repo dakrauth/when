@@ -1,7 +1,8 @@
-import os, sys, time
+import os
+import sys
+import time
 from datetime import datetime
 from unittest.mock import patch
-import pytest
 from dateutil.tz import gettz
 
 from when.core import When
