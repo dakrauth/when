@@ -1,35 +1,111 @@
 import os
+import re
 import sys
-import logging
-from collections import defaultdict
-from pprint import pformat
-from zipfile import ZipFile, ZIP_DEFLATED
-from operator import itemgetter
-from zipimport import zipimporter
+import time
+import binascii
+from pathlib import Path
 
-from dateutil.tz import tzfile
+import requests
+from dateutil.tz import tzfile, tzoffset, gettz
 from dateutil.zoneinfo import get_zonefile_instance
+from dateutil.parser import parse as dt_parse
 
-try:
-    from unidecode import unidecode
-except ImportError:
-    unidecode = None
+from . import timezones
+from .lunar import LunarPhase
 
-logger = logging.getLogger(__name__)
+MONTH_ABBRS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+WEEKDAY_ABBRS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+utc_offset_re = re.compile(r"\b(UTC([+-]\d\d?)(?::(\d\d))?)")
+
+
+def parse(value):
+    dt, tokens = dt_parse(value, fuzzy_with_tokens=True)
+    return dt
+
+
+def render_extras(zone):
+    extra = f" ({zone.name})"
+    if zone.city:
+        extra = f" ({zone.city})"
+
+    return extra
+
+
+def default_format(result, format):
+    zone = result.zone
+    fmt = format.replace("%C", f" ({zone.city})" if zone.city else "")
+
+    if "%Z" in fmt:
+        fmt = fmt.replace("%Z", result.zone.zone_name(result.dt))
+
+    if "%O" in fmt:
+        lp = LunarPhase(result.dt)
+        fmt = fmt.replace("%O", f"[{lp.description}]")
+
+    return result.dt.strftime(fmt).strip()
+
+
+def rfc2822_format(result):
+    dt = result.dt
+    tt = dt.timetuple()
+    mo = MONTH_ABBRS[tt[1] - 1]
+    weekday = WEEKDAY_ABBRS[tt[6]]
+
+    return (
+        f"{weekday}, {tt[2]:02} {mo} {tt[0]:04} {tt[3]:02}:{tt[4]:02}:{tt[5]:02} "
+        f"{dt.strftime('%z')}{render_extras(result.zone)}"
+    )
+
+
+def iso_format(result):
+    return f"{result.dt.isoformat()}{render_extras(result.zone)}"
+
+
+def tz_key(tz):
+    if isinstance(tz, str):
+        tz = tz.encode()
+
+    return binascii.crc32(tz)
+
+
+def timer(func):
+    colorize = "\033[0;37;43m{}\033[0;0m".format
+
+    def inner(*args, **kwargs):
+        start = time.time()
+        result = func(*args, **kwargs)
+        duration = time.time() - start
+        print(colorize(f"⌛️ {func.__name__}: {duration}"), file=sys.stderr)
+        return result
+
+    return inner if os.getenv("WHEN_TIMER") else func
+
+
+@timer
+def fetch(url):
+    r = requests.get(url)
+    if r.ok:
+        return r.content
+    else:
+        raise RuntimeError(f"{r.status_code}: {url}")
 
 
 def get_timezone_db_name(tz):
-    return tz._filename.rsplit('/zoneinfo/', 1)[1] if (
-        isinstance(tz, tzfile) and
-        hasattr(tz, '_filename') and
-        '/zoneinfo/' in tz._filename
-    ) else None
+    filename = None
+    if isinstance(tz, str):
+        filename = tz
+    elif isinstance(tz, tzfile):
+        filename = getattr(tz, "_filename", None)
 
+    if filename is None:
+        return
 
-def get_common(zip_file_name=None):
-    if not zip_file_name:
-        zip_file_name = os.path.join(os.path.dirname(__file__), 'common.zip')
-    return zipimporter(zip_file_name).load_module('common').common
+    if filename == "/etc/localtime":
+        filename = str(Path(filename).resolve())
+
+    if "/zonename/" in filename:
+        return filename.rsplit("/zoneinfo/", 1)[1]
 
 
 def all_zones():
@@ -37,50 +113,9 @@ def all_zones():
     return sorted(zi.zones)
 
 
-def find_city(name, zip_file_name=None):
-    bits = name.rsplit(',', 1)
-    name, co = bits if len(bits) == 2 else (bits[0], None)
-    result = get_common(zip_file_name).get(name.lower(), None)
-    if result:
-        if co:
-            co = co.lower()
-            return [a for a, b in result if b == co]
-        else:
-            return list(map(itemgetter(0), result))
-
-
-def generate_cities_pyzip(data, fname_out=None):
-    fname_out = fname_out or 'common.zip'
-    if not unidecode:
-        logger.warning('You should install Unidecode>=1.0.23')
-
-    lines = [line.split('\t') for line in data.splitlines()]
-    d = defaultdict(list)
-    for city, co, tz in lines:
-        city = city.lower()
-        co = co.lower()
-        d[city].append([tz, co])
-        if unidecode:
-            city2 = unidecode(city)
-            if city2 != city:
-                d[city2].append([tz, co])
-
-    with ZipFile(fname_out, 'w') as z:
-        z.writestr(
-            'common.py',
-            'common=(\n{}\n)'.format(pformat(dict(d), indent=0)),
-            ZIP_DEFLATED
-        )
-
-
 def main():
-    nargs = len(sys.argv)
-    fname = sys.argv[1] if nargs > 1 else 'query_result.tsv'
-    with open(fname) as fp:
-        data = fp.read()
-
-    generate_cities_pyzip(data, sys.argv[2] if nargs > 2 else None)
+    print(parse(" ".join(sys.argv[1:])))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
