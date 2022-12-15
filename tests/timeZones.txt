@@ -1,0 +1,6 @@
+CountryCode	TimeZoneId	GMT	offset	1.	Jan	2022	DST	offset	1.	Jul	2022	rawOffset	(independant	of	DST)
+NL	Europe/Amsterdam	1.0	2.0	1.0
+US	Pacific/Honolulu	-10.0	-10.0	-10.0
+KR	Asia/Seoul	9.0	9.0	9.0
+US	America/New_York	-5.0	-4.0	-5.0
+FR	Europe/Paris	1.0	2.0	1.0

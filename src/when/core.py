@@ -1,150 +1,136 @@
-import re
-import time
 import fnmatch
 import logging
+from itertools import chain
 
 from datetime import datetime
-from dateutil.parser import parse
 from dateutil.tz import gettz
 
 from . import utils
+from .db import client
+from .timezones import zones
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_FORMAT = '%Y-%m-%d %H:%M:%S%z (%Z) %jd%Ww %K'
-ALIASES = dict(
-    CEST='CET',
-    WEST='WET',
-    EEST='EET',
-    **{
-        f'{i}{j}T': v for i, v in [
-            ['P', 'US/Pacific'],
-            ['M', 'US/Mountain'],
-            ['C', 'US/Central'],
-            ['E', 'US/Eastern'],
-        ] for j in ['', 'D', 'S']
-    }
-)
+DEFAULT_FORMAT = "%Y-%m-%d %H:%M:%S%z (%Z) %jd%Ww %C %O"
+
+
+class TimeZoneDetail:
+    def __init__(self, tz=None, name=None, city=None):
+        self.tz = tz or gettz()
+        self.name = name
+        self.city = city
+
+    def zone_name(self, dt):
+        tzname = self.tz.tzname(dt)
+        return self.name or (self.city and self.city.tz) or tzname
+
+    def now(self):
+        return datetime.now(self.tz)
+
+    def replace(self, dt):
+        return dt.replace(tzinfo=self.tz)
+
+    def __repr__(self):
+        bits = [f"tz={self.tz}"]
+        if self.name:
+            bits.append(f"name='{self.name}'")
+
+        if self.city:
+            bits.append(f"city='{self.city}'")
+
+        return f"<TimeZoneDetail({', '.join(bits)})>"
 
 
 class Formatter:
-    format = '%Y-%m-%d %H:%M:%S%z (%Z) %jd%Ww %K'
-
     def __init__(self, format=None):
         self.format = format or DEFAULT_FORMAT
 
-    def __call__(self, dt):
-        tzname = utils.get_timezone_db_name(dt.tzinfo) or '' if dt.tzinfo else ''
-        format = self.format.replace('%K', tzname)
-        return dt.strftime(format).strip()
+    def __call__(self, result):
+        if self.format == "iso":
+            return utils.iso_format(result)
+        elif self.format == "rfc2822":
+            return utils.rfc2822_format(result)
+
+        return utils.default_format(result, self.format)
+
+
+class Result:
+    def __init__(self, dt, zone, source=None):
+        self.dt = dt
+        self.zone = zone
+        self.source = source
+
+    def convert(self, tz):
+        return Result(self.dt.astimezone(tz.tz), tz, self)
+
+    def __repr__(self):
+        return f"<Result(dt={self.dt}, zone={self.zone})>"
 
 
 class When:
-
-    def __init__(self, tz_aliases=None, formatter=None, local_zone=None):
-        self.formatter = formatter
-        if isinstance(formatter, (str, type(None))):
-            self.formatter = Formatter(formatter)
-
-        offsets = [f'UTC{i}' for i in range(-12, 13) if i]
-        self.aliases = ALIASES.copy()
-        self.aliases.update({o: o for o in offsets})
-        if tz_aliases:
-            self.aliases.update(tz_aliases)
-
-        self.tz_keys = utils.all_zones() + list(self.aliases) + offsets
-        self.tz_regex = re.compile(
-            '({})'.format('|'.join([re.escape(a) for a in self.tz_keys]))
-        )
-
-        if local_zone is None:
-            try:
-                local_zone = gettz(time.tzname[0])
-            except Exception:
-                pass
-        self.local_zone = local_zone
-
-    def normalize_tzname(self, name):
-        return self.aliases.get(name, name)
+    def __init__(self, tz_aliases=None, formatter=None, local_zone=None, db=None):
+        self.db = db or client.DB()
+        self.aliases = tz_aliases if tz_aliases else {}
+        self.tz_keys = utils.all_zones() + list(self.aliases)
+        self.local_zone = local_zone or TimeZoneDetail()
 
     def get_tz(self, name):
-        name = self.normalize_tzname(name)
-        return gettz(name)
+        name = self.aliases.get(name, name)
+        return (gettz(name), name)
 
-    def extract_tz(self, ts_str):
-        m = self.tz_regex.search(ts_str)
-        tz = None
-        if not m:
-            return ts_str, None
-
-        ts_str = self.tz_regex.sub('', ts_str).strip()
-        tz = self.get_tz(m.group())
-        return ts_str, tz
-
-    def parse(self, ts_str):
-        ts_str, extracted_tz = self.extract_tz(ts_str)
-        if ts_str:
-            result = parse(ts_str)
-        else:
-            result = datetime.now()
-
-        logger.info('WHEN 1: %s', self.formatter(result))
-
-        if extracted_tz:
-            result = result.replace(tzinfo=extracted_tz)
-        else:
-            if not result.tzinfo:
-                result = result.replace(tzinfo=self.local_zone)
-
-        return result
-
-    def zone_info(self, ts_str):
-        dt = self.parse(ts_str)
-        tz = dt.tzinfo
-        std = tz._ttinfo_std
-        hours = std.offset // 3600
-        minutes = std.offset % 3600 // 60
-        return [
-            ('Offset', f'{hours:+03d}:{minutes:02d}'),
-            ('Offset (seconds)', std.offset),
-            ('Abbreviation', std.abbr or ''),
-        ]
-
-    def get_tzs(self, obj):
-        if not obj:
+    def find_zones(self, objs=None):
+        if not objs:
             return [self.local_zone]
 
-        if isinstance(obj, str):
-            obj = obj.split(',')
+        if isinstance(objs, str):
+            objs = [objs]
 
-        tzs = []
-        for o in obj:
+        tzs = {}
+        for o in objs:
             matches = fnmatch.filter(self.tz_keys, o)
             if matches:
                 for m in matches:
-                    tz = self.get_tz(m)
-                    if tz not in tzs:
-                        tzs.append(tz)
-            else:
-                logger.warning('{} time zone subset not found'.format(o))
-        return tzs
+                    tz, name = self.get_tz(m)
+                    if name not in tzs:
+                        tzs.setdefault(name, []).append(TimeZoneDetail(tz, name))
 
-    def results(self, dt, tzs):
-        return [dt.astimezone(tz) for tz in tzs]
+            for tz, name in zones.get(o):
+                tzs.setdefault(name, []).append(TimeZoneDetail(tz, name))
 
-    def convert(self, ts_str=None, as_tzs=None):
-        logger.debug(f'GOT string {ts_str}, zones: {as_tzs}')
-        as_tzs = self.get_tzs(as_tzs)
+            results = self.db.search(o)
+            for c in results:
+                tz, name = self.get_tz(c.tz)
+                tzs.setdefault(None, []).append(TimeZoneDetail(tz, name, c))
 
-        if not ts_str:
-            now = datetime.now(self.local_zone)
-            if as_tzs:
-                return self.results(now, as_tzs)
+        return list(chain.from_iterable(tzs.values()))
 
-            return [now]
+    def parse_source(self, ts, source_zones=None):
+        source_zones = source_zones or [self.local_zone]
+        if ts:
+            result = utils.parse(ts)
+            return [Result(tz.replace(result), tz) for tz in source_zones]
 
-        # ts_str, ex_tz = self.extract_tz(ts_str)
+        return [Result(tz.now(), tz) for tz in source_zones]
 
-        result = self.parse(ts_str)
-        logger.debug('WHEN 1: %s', self.formatter(result))
-        return self.results(result, as_tzs)
+    def convert(self, ts, sources=None, targets=None):
+        logger.debug("GOT ts %s, targets %s, sources: %s", ts, targets, sources)
+        target_zones = None
+        source_zones = None
+        if sources:
+            source_zones = self.find_zones(sources)
+            if not source_zones:
+                raise ValueError(f"Could not find sources: {sources}")
+
+        if targets:
+            target_zones = self.find_zones(targets)
+        else:
+            if sources and ts:
+                target_zones = self.find_zones()
+
+        results = self.parse_source(ts, source_zones)
+        logger.debug("WHEN: %s", results)
+
+        if target_zones:
+            results = [result.convert(tz) for result in results for tz in target_zones]
+
+        return results
