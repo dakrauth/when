@@ -1,38 +1,36 @@
 import re
 import sys
 import sqlite3
+import logging
 from collections import namedtuple
 from pathlib import Path
 
 from .. import utils
 
+logger = logging.getLogger(__name__)
+
 DB_FILENAME = Path(__file__).parent / "when.db"
 DB_SCHEMA = """
 PRAGMA encoding = "UTF-8";
-CREATE TABLE "tz" (
-    "id"    INTEGER PRIMARY KEY,
-    "tz"    TEXT NOT NULL
-);
 CREATE TABLE "city" (
     "id"    INTEGER PRIMARY KEY,
     "name"  TEXT NOT NULL,
     "ascii" TEXT NOT NULL,
     "co"    TEXT NOT NULL,
     "sub"   TEXT NOT NULL,
-    "tz_id" INTEGER NOT NULL
+    "tz"    TEXT NOT NULL,
+    "pop"   INTEGER
 );
 CREATE TABLE "alias" (
     "alias" TEXT PRIMARY KEY,
     "city_id" INTEGER NOT NULL
 );
-CREATE INDEX "tz-index" ON "city" ("tz_id");
 CREATE INDEX "city-index" ON "alias" ("city_id");
 """
 
 SEARCH_QUERY = """
-SELECT c.id, c.name, c.ascii, c.co, c.sub, t.tz
+SELECT c.id, c.name, c.ascii, c.co, c.sub, c.tz
 FROM city c
-LEFT JOIN tz t on c.tz_id = t.id
 WHERE
     c.id = :value OR
     {}
@@ -42,7 +40,11 @@ MISSING_DB = f"""
 The when database is not currently available. You can generate it easily
 (assuming you have internet access) by issuing the following command:
 
-    {sys.executable} -m when --db
+    when --db
+
+For details, see:
+
+    when --help
 """
 
 
@@ -105,26 +107,29 @@ class DB:
             con.close()
 
     @utils.timer
-    def create_db(self, data, tzs, remove_existing=True):
+    def create_db(self, data, remove_existing=True):
         if self.filename and self.filename.exists() and remove_existing:
             self.filename.unlink()
 
         con = self._db
         cur = con.cursor()
         cur.executescript(DB_SCHEMA)
-        cur.executemany("INSERT INTO tz VALUES (?, ?)", tzs)
-        cur.executemany("INSERT INTO city VALUES (?, ?, ?, ?, ?, ?)", data)
+        cur.executemany("INSERT INTO city VALUES (?, ?, ?, ?, ?, ?, ?)", data)
         con.commit()
 
         self.close(con)
 
     def search(self, value):
-        con = self.connection
+        try:
+            con = self.connection
+        except DBError as e:
+            logger.warning(str(e))
+            return []
+
         result = con.execute(
             """
-                SELECT c.id, c.name, c.ascii, c.co, c.sub, t.tz
+                SELECT c.id, c.name, c.ascii, c.co, c.sub, c.tz
                 FROM city c
-                LEFT JOIN tz t on c.tz_id = t.id
                 LEFT JOIN alias a on a.city_id = c.id
                 WHERE a.alias = ?
             """,

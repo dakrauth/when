@@ -323,7 +323,7 @@ class Zones:
     def __init__(self, abbrs):
         self.abbrs = {k.lower(): v for k,v in abbrs.items()}
         self._cached = {}
-        self.utc_offset_re = re.compile(r"^UTC[+±-]\d\d?(:\d\d)$", re.IGNORECASE)
+        self.utc_offset_re = re.compile(r"^UTC[+±-]\d\d?(:\d\d)?$", re.IGNORECASE)
 
     def get(self, abbr):
         lower = abbr.lower()

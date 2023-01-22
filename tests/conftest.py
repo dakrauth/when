@@ -11,8 +11,7 @@ test_dir = Path(__file__).parent
 def db():
     db_client = client.DB(":memory:")
     data = make.process_geonames_txt(test_dir / "citiesTest.txt", 0)
-    tzs = make.load_timezones((test_dir / "timeZones.txt").read_text().strip())
-    db_client.create_db(data, tzs)
+    db_client.create_db(data)
     return db_client
 
 
