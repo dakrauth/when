@@ -26,7 +26,7 @@ from datetime import date, datetime, timedelta
 from dateutil import rrule
 from dateutil.easter import easter
 
-from .core import When, Formatter, DEFAULT_FORMAT
+from . import core
 from .db import make
 from .db import client
 from . import VERSION
@@ -77,10 +77,10 @@ def db_main(args, db):
         db.add_alias(value, args.alias)
         return 0
 
-    filename = make.fetch_cities(args.size, cached=args.cache)
-    data = make.process_geonames_txt(filename, args.pop)
-    tzs = make.fetch_timezones(args.cache)
-    db.create_db(data, tzs)
+    filename = make.fetch_cities(args.size)
+    admin_1 = make.fetch_admin_1()
+    data = make.process_geonames_txt(filename, args.pop, admin_1)
+    db.create_db(data, admin_1)
     return 0
 
 
@@ -165,13 +165,13 @@ def get_parser():
     parser.add_argument(
         "-f",
         "--format",
-        default=DEFAULT_FORMAT,
+        default=core.DEFAULT_FORMAT,
         help="""
             Output formatting. Additionaly predefined formats by name are {}.
             Default: {}, where %%K is timezone long name
         """.format(
             ", ".join(["rfc2822, iso, "]),
-            DEFAULT_FORMAT.replace("%", "%%"),
+            core.DEFAULT_FORMAT.replace("%", "%%"),
         ),
     )
 
@@ -182,7 +182,7 @@ def get_parser():
         help="Show times in all common timezones",
     )
 
-    parser.add_argument("--holiday", help="Show holidays for given country code.")
+    parser.add_argument("--holidays", help="Show holidays for given country code.")
 
     parser.add_argument(
         "-v", "--verbosity", action="count", default=0, help="Verbosity (-v, -vv, etc)"
@@ -201,7 +201,7 @@ def get_parser():
         "--db",
         action="store_true",
         default=False,
-        help="Togge database mode, used with --search, --alias, --size, --pop and --cache",
+        help="Togge database mode, used with --search, --alias, --size, and --pop",
     )
 
     parser.add_argument(
@@ -222,16 +222,9 @@ def get_parser():
 
     parser.add_argument(
         "--pop",
-        default=15_000,
+        default=10_000,
         type=int,
         help="(Used with --db) City population minimum.",
-    )
-
-    parser.add_argument(
-        "--cache",
-        action="store_true",
-        default=False,
-        help="(Used with --db) Use cached files from GeoNames",
     )
 
     return parser
@@ -288,19 +281,25 @@ def main(sys_args, when=None):
         pdb.set_trace()
 
     log_config(args.verbosity)
-    when = when or When()
+    when = when or core.When()
     if args.db:
         return db_main(args, when.db)
-    elif args.holiday:
-        return holiday(args.holiday, args.timestamp[0] if args.timestamp else None)
+    elif args.holidays:
+        return holidays(args.holidays, args.timestamp[0] if args.timestamp else None)
 
     ts = parse_source_input(args.timestamp)
     targets = args.target
     if args.all:
         targets = utils.all_zones()
 
-    formatter = Formatter(args.format)
-    for result in when.convert(ts, args.source, targets):
+    formatter = core.Formatter(args.format)
+    try:
+        results = when.convert(ts, args.source, targets)
+    except core.UnknownSourceError as e:
+        print(e)
+        return 1
+
+    for result in results:
         print(formatter(result))
 
     return 0

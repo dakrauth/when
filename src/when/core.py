@@ -14,6 +14,14 @@ logger = logging.getLogger(__name__)
 DEFAULT_FORMAT = "%Y-%m-%d %H:%M:%S%z (%Z) %jd%Ww %C %O"
 
 
+class WhenError(Exception):
+    pass
+
+
+class UnknownSourceError(WhenError):
+    pass
+
+
 class TimeZoneDetail:
     def __init__(self, tz=None, name=None, city=None):
         self.tz = tz or gettz()
@@ -71,12 +79,20 @@ class When:
     def __init__(self, tz_aliases=None, formatter=None, local_zone=None, db=None):
         self.db = db or client.DB()
         self.aliases = tz_aliases if tz_aliases else {}
-        self.tz_keys = utils.all_zones() + list(self.aliases)
+        self.tz_dict = {}
+        for z in utils.all_zones():
+            self.tz_dict[z] = z
+            self.tz_dict[z.lower()] = z
+
+        self.tz_keys = list(self.tz_dict) + list(self.aliases)
         self.local_zone = local_zone or TimeZoneDetail()
 
     def get_tz(self, name):
-        name = self.aliases.get(name, name)
-        return (gettz(name), name)
+        value = self.aliases.get(name, None)
+        if not value:
+            value = self.tz_dict[name]
+
+        return (gettz(value), name)
 
     def find_zones(self, objs=None):
         if not objs:
@@ -104,7 +120,7 @@ class When:
 
         return list(chain.from_iterable(tzs.values()))
 
-    def parse_source(self, ts, source_zones=None):
+    def parse_source_timestamp(self, ts, source_zones=None):
         source_zones = source_zones or [self.local_zone]
         if ts:
             result = utils.parse(ts)
@@ -119,7 +135,7 @@ class When:
         if sources:
             source_zones = self.find_zones(sources)
             if not source_zones:
-                raise ValueError(f"Could not find sources: {sources}")
+                raise UnknownSourceError(f"Could not find sources: {', '.join(sources)}")
 
         if targets:
             target_zones = self.find_zones(targets)
@@ -127,7 +143,7 @@ class When:
             if sources and ts:
                 target_zones = self.find_zones()
 
-        results = self.parse_source(ts, source_zones)
+        results = self.parse_source_timestamp(ts, source_zones)
         logger.debug("WHEN: %s", results)
 
         if target_zones:

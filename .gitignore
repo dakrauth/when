@@ -106,5 +106,6 @@ venv.bak/
 # when
 src/when/db/cities*.txt
 src/when/db/timeZones.txt
+src/when/db/admin1CodesASCII.txt
 src/when/db/when.db
 .vscode/

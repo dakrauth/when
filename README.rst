@@ -8,27 +8,57 @@ when 🌐🕐
 Usage
 -----
 
+To access city names, you must install the cities database, downloaded from 
+http://download.geonames.org/export/dump/citiesXXX.zip - depending upon where you specify the
+``--size [500|1000|5000|15000]`` or ``--pop POP`` option(s).
+
 .. code:: bash
 
     $ when --help
-    usage: when [-h] [-z TZSTR] [-f FORMATTING] [-c] [--pdb] [--all] [-v] [-V]
-                [timestamp [timestamp ...]]
+    usage: when [-h] [-s SOURCE] [-t TARGET] [-f FORMAT] [--all] [--holidays HOLIDAYS] [-v] [-V] [--pdb] [--db] [--search SEARCH] [--alias ALIAS] [--size SIZE]
+                [--pop POP]
+                [timestamp ...]
+
+    Convert times to and from time zones or cities
 
     positional arguments:
-      timestamp             Optional timestamp to parse, defaults to UTC now
+      timestamp             Timestamp to parse, defaults to local time
 
-    optional arguments:
+    options:
       -h, --help            show this help message and exit
-      -z TZSTR, --zone TZSTR
-                            Timezone to convert the timestamp to (globbing
-                            patterns allowed)
-      -f FORMATTING, --format FORMATTING
-                            Output formatting. Default: %Y-%m-%d %H:%M:%S%z (%Z)
-                            %jd%Ww %K, where %K is timezone long name
-      -c, --city            Interpret timestamp as city name
+      -s SOURCE, --source SOURCE
+                            Timezone / city to convert the timestamp from, defaulting to local time
+      -t TARGET, --target TARGET
+                            Timezone / city to convert the timestamp to (globbing patterns allowed, can be comma delimited), defaulting to local time
+      -f FORMAT, --format FORMAT
+                            Output formatting. Additionaly predefined formats by name are rfc2822, iso, . Default: %Y-%m-%d %H:%M:%S%z (%Z) %jd%Ww %C %O, where %K
+                            is timezone long name
       --all                 Show times in all common timezones
-      -v, --verbose         Verbosity (-v, -vv, etc)
+      --holidays HOLIDAYS   Show holidays for given country code.
+      -v, --verbosity       Verbosity (-v, -vv, etc)
       -V, --version         show program's version number and exit
+      --pdb
+      --db                  Togge database mode, used with --search, --alias, --size, and --pop
+      --search SEARCH       Search database for the given city (used with --db)
+      --alias ALIAS         (Used with --db) Create a new alias from the city id
+      --size SIZE           (Used with --db) Geonames file size. Can be one of 1000, 500, 15000, 5000.
+      --pop POP             (Used with --db) City population minimum.
+
+    Examples:
+    =========
+
+    # Show the time in a given source city or time zone
+
+    when --source New York City
+    when --source America/New_York
+
+    # Show the specified time at a given source in local time
+
+    when --source Paris,FR 21:35
+
+    # Show the specified time at a given source in the target locale's time
+
+    when --target Bangkok --source Seattle
 
 Example
 -------
@@ -36,41 +66,25 @@ Example
 .. code:: bash
 
     $ when
-    2019-02-23 18:07:58-0500 (EST) 054d07w America/New_York
+    2023-02-11 17:43:44+0900 (KST) 042d06w  [🌖 Waning Gibbous]
 
-    $ when -z CST
-    2019-02-23 17:07:58-0600 (CST) 054d07w US/Central
+    $ when --source CST
+    2023-02-11 02:44:22-0600 (Central Standard Time) 042d06w  [🌖 Waning Gibbous]
+    2023-02-11 12:44:22+0400 (Caucasus Standard Time) 042d06w  [🌖 Waning Gibbous]
+    2023-02-11 16:44:22+0800 (China Standard Time) 042d06w  [🌖 Waning Gibbous]
+    2023-02-11 03:44:22-0500 (Cuba Standard Time) 042d06w  [🌖 Waning Gibbous]
 
-    $ when -z PST,CET
-    2019-02-23 15:07:58-0800 (PST) 054d07w US/Pacific
-    2019-02-24 00:07:58+0100 (CET) 055d07w CET
+    $ when --source Paris
+    2023-02-11 09:45:11+0100 (Europe/Paris) 042d06w  (Villeparisis, FR, Île-de-France) [🌖 Waning Gibbous]
+    2023-02-11 09:45:11+0100 (Europe/Paris) 042d06w  (Paris, FR, Île-de-France) [🌖 Waning Gibbous]
+    2023-02-11 09:45:11+0100 (Europe/Paris) 042d06w  (Cormeilles-en-Parisis, FR, Île-de-France) [🌖 Waning Gibbous]
+    2023-02-11 03:45:11-0500 (America/Port-au-Prince) 042d06w  (Fond Parisien, HT, Ouest) [🌖 Waning Gibbous]
+    2023-02-11 02:45:11-0600 (America/Chicago) 042d06w  (Paris, US, Texas) [🌖 Waning Gibbous]
 
-    $ when -c Paris
-    2019-02-24 00:07:59+0100 (CET) 055d07w Europe/Paris
-    2019-02-23 17:07:59-0600 (CST) 054d07w America/Chicago
+    $ when --source "San Francisco,US" --target America/New_York Mar 7 1945 7:00pm
+    1945-03-07 22:00:00-0400 (America/New_York) 066d10w  [🌘 Waning Crescent]
+    1945-03-07 22:00:00-0400 (America/New_York) 066d10w  [🌘 Waning Crescent]
 
-    $ when Mar 7 1945 7:00pm PST
-    1945-03-07 22:53:00-0400 (EWT) 066d10w America/New_York
-
-    $ when Jun 7
-    2019-06-07 00:00:00-0400 (EDT) 158d22w America/New_York
-
-    $ when -z US/Hawaii Jun 7
-    2019-06-06 18:00:00-1000 (HST) 157d22w US/Hawaii
-
-    $ when -z "US/*" Feb 29 2020 6pm
-    2020-02-29 14:00:00-0900 (AKST) 060d08w US/Alaska
-    2020-02-29 13:00:00-1000 (HST) 060d08w US/Aleutian
-    2020-02-29 16:00:00-0700 (MST) 060d08w US/Arizona
-    2020-02-29 17:00:00-0600 (CST) 060d08w US/Central
-    2020-02-29 18:00:00-0500 (EST) 060d08w US/East-Indiana
-    2020-02-29 18:00:00-0500 (EST) 060d08w US/Eastern
-    2020-02-29 13:00:00-1000 (HST) 060d08w US/Hawaii
-    2020-02-29 17:00:00-0600 (CST) 060d08w US/Indiana-Starke
-    2020-02-29 18:00:00-0500 (EST) 060d08w US/Michigan
-    2020-02-29 16:00:00-0700 (MST) 060d08w US/Mountain
-    2020-02-29 15:00:00-0800 (PST) 060d08w US/Pacific
-    2020-02-29 12:00:00-1100 (SST) 060d08w US/Samoa
 
 Develop
 -------
@@ -85,6 +99,7 @@ Requirements Python 3.7+
     $ . venv/bin/activate
     $ pip install .
     $ when --help
+    $ when --db
     $ pip install tox
     $ tox
 

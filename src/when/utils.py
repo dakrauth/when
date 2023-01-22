@@ -2,7 +2,6 @@ import os
 import re
 import sys
 import time
-import binascii
 from pathlib import Path
 
 import requests
@@ -60,13 +59,6 @@ def rfc2822_format(result):
 
 def iso_format(result):
     return f"{result.dt.isoformat()}{render_extras(result.zone)}"
-
-
-def tz_key(tz):
-    if isinstance(tz, str):
-        tz = tz.encode()
-
-    return binascii.crc32(tz)
 
 
 def timer(func):
