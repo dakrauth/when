@@ -46,7 +46,7 @@ HOLIDAYS = {
         # Floating holidays
         ("Memorial Day",  "Last Mon in May"),
         ("MLK Day", "3rd Mon in Jan"),
-        ("Presidents' Day", "3rd Mon in Mar"),
+        ("Presidents' Day", "3rd Mon in Feb"),
         ("Mother's Day", "2nd Sun in May"),
         ("Father's Day", "3rd Sun in Jun"),
         ("Labor", "1st Mon in Sep"),
