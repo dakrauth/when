@@ -8,8 +8,8 @@ from dateutil.tz import gettz
 from when.core import Formatter
 from when import utils
 from when.db import client
-from when.main import main as when_main
-from when.main import holidays
+from when.cli import main as when_main
+from when.core import holidays
 from when.timezones import zones
 
 #"NYC", 5128581

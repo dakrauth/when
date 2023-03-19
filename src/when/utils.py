@@ -2,17 +2,29 @@ import os
 import re
 import sys
 import time
+import decimal
 from pathlib import Path
+from datetime import datetime
 
 import requests
-from dateutil.tz import tzfile, tzoffset, gettz
+from dateutil.tz import tzfile
 from dateutil.zoneinfo import get_zonefile_instance
 from dateutil.parser import parse as dt_parse
 
-from . import timezones
-from .lunar import LunarPhase
-
-MONTH_ABBRS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+MONTH_ABBRS = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+]
 WEEKDAY_ABBRS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 utc_offset_re = re.compile(r"\b(UTC([+-]\d\d?)(?::(\d\d))?)")
@@ -23,42 +35,30 @@ def parse(value):
     return dt
 
 
-def render_extras(zone):
-    extra = f" ({zone.name})"
-    if zone.city:
-        extra = f" ({zone.city})"
+def datetime_from_timestamp(arg):
+    try:
+        value = decimal.Decimal(arg)
+    except decimal.InvalidOperation:
+        return None
 
-    return extra
+    value = float(value)
+    try:
+        dt = datetime.fromtimestamp(value)
+    except ValueError as err:
+        if "out of range" not in str(err):
+            raise
+        dt = datetime.fromtimestamp(value / 1000)
 
-
-def default_format(result, format):
-    zone = result.zone
-    fmt = format.replace("%C", f" ({zone.city})" if zone.city else "")
-
-    if "%Z" in fmt:
-        fmt = fmt.replace("%Z", result.zone.zone_name(result.dt))
-
-    if "%O" in fmt:
-        lp = LunarPhase(result.dt)
-        fmt = fmt.replace("%O", f"[{lp.description}]")
-
-    return result.dt.strftime(fmt).strip()
+    return dt
 
 
-def rfc2822_format(result):
-    dt = result.dt
-    tt = dt.timetuple()
-    mo = MONTH_ABBRS[tt[1] - 1]
-    weekday = WEEKDAY_ABBRS[tt[6]]
+def parse_source_input(arg):
+    # arg = arg or datetime.now().isoformat()
+    if not isinstance(arg, str):
+        arg = " ".join(arg)
 
-    return (
-        f"{weekday}, {tt[2]:02} {mo} {tt[0]:04} {tt[3]:02}:{tt[4]:02}:{tt[5]:02} "
-        f"{dt.strftime('%z')}{render_extras(result.zone)}"
-    )
-
-
-def iso_format(result):
-    return f"{result.dt.isoformat()}{render_extras(result.zone)}"
+    value = datetime_from_timestamp(arg)
+    return value.isoformat() if value else arg.strip()
 
 
 def timer(func):

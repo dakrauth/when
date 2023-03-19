@@ -1,8 +1,14 @@
+import io
+import re
 import fnmatch
 import logging
+import configparser
+from pathlib import Path
 from itertools import chain
+from datetime import date, datetime, timedelta
 
-from datetime import datetime
+from dateutil import rrule
+from dateutil.easter import easter
 from dateutil.tz import gettz
 
 from . import utils
@@ -11,7 +17,7 @@ from .timezones import zones
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_FORMAT = "%Y-%m-%d %H:%M:%S%z (%Z) %jd%Ww %C %O"
+DEFAULT_FORMAT = "%Y-%m-%d %H:%M:%S%z (%Z) %jd%Ww (%C) [%O]"
 
 
 class WhenError(Exception):
@@ -20,6 +26,156 @@ class WhenError(Exception):
 
 class UnknownSourceError(WhenError):
     pass
+
+
+class LunarPhase:
+    JULIAN_OFFSET = 1721424.5
+    LUNAR_CYCLE = 29.53
+    KNOWN_NEW_MOON = 2451549.5
+    TABLE = [
+        ("🌑", "New Moon"),
+        ("🌒", "Waxing Crescent"),
+        ("🌓", "First Quarter"),
+        ("🌔", "Waxing Gibbous"),
+        ("🌕", "Full Moon"),
+        ("🌖", "Waning Gibbous"),
+        ("🌗", "Last Quarter"),
+        ("🌘", "Waning Crescent"),
+    ]
+
+    def __init__(self, dt=None, dt_fmt="%a, %b %d %Y"):
+        self.dt = dt or datetime.now()
+        self.dt_fmt = dt_fmt
+
+        self.julian = dt.toordinal() + self.JULIAN_OFFSET
+        new_moons = (self.julian - self.KNOWN_NEW_MOON) / self.LUNAR_CYCLE
+        self.age = (new_moons - int(new_moons)) * self.LUNAR_CYCLE
+        self.index = int(self.age / (self.LUNAR_CYCLE / 8))
+        self.emoji, self.name = self.TABLE[self.index]
+
+    @property
+    def description(self):
+        return f"{self.emoji} {self.name}"
+
+    def __str__(self):
+        dt_fmt = self.dt.strftime(self.dt_fmt)
+        return f"{dt_fmt} {self.description}"
+
+
+class Settings(configparser.ConfigParser):
+    def __init__(self):
+        super().__init__(interpolation=configparser.ExtendedInterpolation())
+        self.read_dict(
+            {
+                "holidays.US": {
+                    # Relative to Easter
+                    "Easter": "Easter +0",
+                    "Ash Wednesday": "Easter -46",
+                    "Mardi Gras": "Easter -47",
+                    "Palm Sunday": "Easter -7",
+                    "Good Friday": "Easter -2",
+                    # Floating holidays
+                    "Memorial Day": "Last Mon in May",
+                    "MLK Day": "3rd Mon in Jan",
+                    "Presidents' Day": "3rd Mon in Feb",
+                    "Mother's Day": "2nd Sun in May",
+                    "Father's Day": "3rd Sun in Jun",
+                    "Labor": "1st Mon in Sep",
+                    "Columbus Day": "2nd Mon in Oct",
+                    "Thanksgiving": "4th Thr in Nov",
+                    # Fixed holidays
+                    "New Year's Day": "Jan 1",
+                    "Valentine's Day": "Feb 14",
+                    "St. Patrick's Day": "Mar 17",
+                    "Juneteenth": "Jun 19",
+                    "Independence Day": "Jul 4",
+                    "Halloween": "Oct 31",
+                    "Veterans Day": "Nov 11",
+                    "Christmas": "Dec 25",
+                },
+                "formats": {
+                    "default": DEFAULT_FORMAT,
+                }
+            }
+        )
+        name = ".whenrc"
+        paths = [Path.cwd() / name, Path.home() / name]
+        self.read_from = self.read(paths)
+
+    def write_text(self):
+        fobj = io.StringIO()
+        self.write(fobj)
+        return fobj.getvalue()
+
+    def optionxform(self, option):
+        return option
+
+
+settings = Settings()
+
+
+def holidays(co="US", ts=None):
+    year = datetime(int(ts) if ts else datetime.now().year, 1, 1)
+    holiday_fmt = "%a, %b %d %Y"
+    wkds = "(mon|tue|wed|thr|fri|sat|sun)"
+    mos = [
+        "jan",
+        "feb",
+        "mar",
+        "apr",
+        "may",
+        "jun",
+        "jul",
+        "aug",
+        "sep",
+        "oct",
+        "nov",
+        "dec",
+    ]
+    mos_pat = "|".join(mos)
+
+    def easter_offset(m):
+        return easter(year.year) + timedelta(days=int(m.group(1)))
+
+    def fixed(m):
+        mo, day = m.groups()
+        return date(year.year, mos.index(mo.lower()) + 1, int(day))
+
+    def floating(m):
+        ordinal, day, mo = m.groups()
+        ordinal = -1 if ordinal.lower() == "la" else int(ordinal)
+        wkd = getattr(rrule, day[:2].upper())(ordinal)
+        mo = mos.index(mo.lower()) + 1
+        rule = rrule.rrule(
+            rrule.YEARLY, count=1, byweekday=wkd, bymonth=mo, dtstart=year
+        )
+        res = list(rule)[0]
+        return res.date() if res else ""
+
+    strategies = [
+        (re.compile(r"^easter ([+-]\d+)", re.I), easter_offset),
+        (
+            re.compile(rf"^(la|\d)(?:st|rd|th|nd) {wkds} in ({mos_pat})$", re.I),
+            floating,
+        ),
+        (re.compile(rf"^({mos_pat}) (\d\d?)$", re.I), fixed),
+    ]
+
+    results = []
+    for title, expr in settings[f"holidays.{co}"].items():
+        for regex, callback in strategies:
+            m = regex.match(expr)
+            if m:
+                results.append([title, callback(m)])
+                break
+
+    mx = 2 + max(len(t[0]) for t in results)
+    for title, dt in sorted(results, key=lambda o: o[1]):
+        print(
+            "{:.<{}}{} [{}]".format(
+                title, mx, dt.strftime(holiday_fmt), LunarPhase(dt).description
+            )
+        )
 
 
 class TimeZoneDetail:
@@ -53,13 +209,48 @@ class Formatter:
     def __init__(self, format=None):
         self.format = format or DEFAULT_FORMAT
 
+    @staticmethod
+    def render_extras(zone):
+        extra = f" ({zone.name})"
+        if zone.city:
+            extra = f" ({zone.city})"
+
+        return extra
+
+    def default_format(self, result, format):
+        zone = result.zone
+        fmt = format.replace("%C", f" {zone.city}" if zone.city else "")
+
+        if "%Z" in fmt:
+            fmt = fmt.replace("%Z", result.zone.zone_name(result.dt))
+
+        if "%O" in fmt:
+            lp = LunarPhase(result.dt)
+            fmt = fmt.replace("%O", f"{lp.description}")
+
+        return result.dt.strftime(fmt).strip()
+
+    def rfc2822_format(self, result):
+        dt = result.dt
+        tt = dt.timetuple()
+        mo = utils.MONTH_ABBRS[tt[1] - 1]
+        weekday = utils.WEEKDAY_ABBRS[tt[6]]
+
+        return (
+            f"{weekday}, {tt[2]:02} {mo} {tt[0]:04} {tt[3]:02}:{tt[4]:02}:{tt[5]:02} "
+            f"{dt.strftime('%z')}{self.render_extras(result.zone)}"
+        )
+
+    def iso_format(self, result):
+        return f"{result.dt.isoformat()}{self.render_extras(result.zone)}"
+
     def __call__(self, result):
         if self.format == "iso":
-            return utils.iso_format(result)
+            return self.iso_format(result)
         elif self.format == "rfc2822":
-            return utils.rfc2822_format(result)
+            return self.rfc2822_format(result)
 
-        return utils.default_format(result, self.format)
+        return self.default_format(result, self.format)
 
 
 class Result:
@@ -135,7 +326,9 @@ class When:
         if sources:
             source_zones = self.find_zones(sources)
             if not source_zones:
-                raise UnknownSourceError(f"Could not find sources: {', '.join(sources)}")
+                raise UnknownSourceError(
+                    f"Could not find sources: {', '.join(sources)}"
+                )
 
         if targets:
             target_zones = self.find_zones(targets)

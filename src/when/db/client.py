@@ -1,5 +1,4 @@
 import re
-import sys
 import sqlite3
 import logging
 from collections import namedtuple
@@ -36,7 +35,7 @@ WHERE
     {}
 """
 
-MISSING_DB = f"""
+MISSING_DB = """
 The when database is not currently available. You can generate it easily
 (assuming you have internet access) by issuing the following command:
 
@@ -71,7 +70,9 @@ class DB:
     MEMORY_DB = ":memory:"
 
     def __init__(self, filename=None):
-        self.filename = None if filename == self.MEMORY_DB else Path(filename or DB_FILENAME)
+        self.filename = (
+            None if filename == self.MEMORY_DB else Path(filename or DB_FILENAME)
+        )
         self._memory = None
 
     @property

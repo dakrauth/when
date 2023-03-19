@@ -109,3 +109,4 @@ src/when/db/timeZones.txt
 src/when/db/admin1CodesASCII.txt
 src/when/db/when.db
 .vscode/
+.whenrc
