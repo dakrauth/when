@@ -28,13 +28,13 @@ logger = logging.getLogger(__name__)
 
 
 def db_main(args, db):
+    value = " ".join(args.timestamp)
     if args.search:
-        for row in db.search(args.search):
+        for row in db.search(value):
             print(", ".join(str(c) for c in row))
         return 0
 
     if args.alias:
-        value = " ".join(args.timestamp)
         db.add_alias(value, args.alias)
         return 0
 
@@ -121,7 +121,10 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--search", help="Search database for the given city (used with --db)"
+        "--search",
+        action="store_true",
+        default=False,
+        help="Search database for the given city (used with --db)",
     )
     parser.add_argument(
         "--alias", type=int, help="(Used with --db) Create a new alias from the city id"
