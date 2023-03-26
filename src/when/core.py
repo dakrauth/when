@@ -219,7 +219,7 @@ class Formatter:
 
     def default_format(self, result, format):
         zone = result.zone
-        fmt = format.replace("%C", f" {zone.city}" if zone.city else "")
+        fmt = format.replace("%C", f"{zone.city}" if zone.city else "")
 
         if "%Z" in fmt:
             fmt = fmt.replace("%Z", result.zone.zone_name(result.dt))
