@@ -4,61 +4,56 @@ when 🌐🕐
 .. image:: https://github.com/dakrauth/when/actions/workflows/test.yml/badge.svg
     :target: https://github.com/dakrauth/when
 
+Installation
+------------
+
+Install from PyPI::
+
+    $ pip install when
+
+or using pipx_::
+
+    $ pipx install when
+
+or::
+
+    $ pipx install git+https://github.com/dakrauth/when.git
+
+.. _pipx: https://pypa.github.io/pipx/
+
 
 Usage
 -----
 
-To access city names, you must install the cities database, downloaded from 
-http://download.geonames.org/export/dump/citiesXXX.zip - depending upon where you specify the
-``--size [500|1000|5000|15000]`` or ``--pop POP`` option(s).
+To access city names, you must install the cities database::
 
-.. code:: bash
+    when --db
 
-    $ when --help
-    usage: when [-h] [-s SOURCE] [-t TARGET] [-f FORMAT] [--all] [--holidays HOLIDAYS] [-v] [-V] [--pdb] [--db] [--search SEARCH] [--alias ALIAS] [--size SIZE]
-                [--pop POP]
-                [timestamp ...]
+You can specify minimum city size by adding ``--size SIZE``, where *SIZE* can be one of:
 
-    Convert times to and from time zones or cities
+- ``15000`` - cities with population > 15000 or capitals
+- ``5000`` - cities with population > 5000 or seat of first-order admin division, i.e. US state
+- ``1000`` - cities with population > 1000 or seat of third order admin division
+- ``500`` - cities with population > 500 or seat of fourth-order admin division
 
-    positional arguments:
-      timestamp             Timestamp to parse, defaults to local time
+Additionally, you can filter non-admin division seats using ``--pop POP``.
 
-    options:
-      -h, --help            show this help message and exit
-      -s SOURCE, --source SOURCE
-                            Timezone / city to convert the timestamp from, defaulting to local time
-      -t TARGET, --target TARGET
-                            Timezone / city to convert the timestamp to (globbing patterns allowed, can be comma delimited), defaulting to local time
-      -f FORMAT, --format FORMAT
-                            Output formatting. Additionaly predefined formats by name are rfc2822, iso, . Default: %Y-%m-%d %H:%M:%S%z (%Z) %jd%Ww %C %O, where %K
-                            is timezone long name
-      --all                 Show times in all common timezones
-      --holidays HOLIDAYS   Show holidays for given country code.
-      -v, --verbosity       Verbosity (-v, -vv, etc)
-      -V, --version         show program's version number and exit
-      --pdb
-      --db                  Togge database mode, used with --search, --alias, --size, and --pop
-      --search SEARCH       Search database for the given city (used with --db)
-      --alias ALIAS         (Used with --db) Create a new alias from the city id
-      --size SIZE           (Used with --db) Geonames file size. Can be one of 1000, 500, 15000, 5000.
-      --pop POP             (Used with --db) City population minimum.
+The appropriate GeoNames Gazetteer is downloaded and a Sqlite database generated. Once 
+installed, you can search the database::
 
-    Examples:
-    =========
+    $ when --db --search New York
+    5106292, West New York, West New York, US, New Jersey, America/New_York
+    5128581, New York City, New York City, US, New York, America/New_York
 
-    # Show the time in a given source city or time zone
 
-    when --source New York City
-    when --source America/New_York
+Additionally, you can add aliases. In the example directly above, we see that New York City has
+a GeoNames ID of 5128581. Pass that to the ``--alias`` option along with another name that
+you would like to use::
 
-    # Show the specified time at a given source in local time
+    $ when --db --alias 5128581 NYC
+    $ when NYC
+    2023-03-26 05:24:02-0400 (America/New_York) 085d12w (New York City, US, New York) [🌒 Waxing Crescent]
 
-    when --source Paris,FR 21:35
-
-    # Show the specified time at a given source in the target locale's time
-
-    when --target Bangkok --source Seattle
 
 Example
 -------
@@ -89,7 +84,7 @@ Example
 Develop
 -------
 
-Requirements Python 3.7+
+Requirements Python 3.8+
 
 .. code:: bash
 
