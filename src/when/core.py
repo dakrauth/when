@@ -2,7 +2,6 @@ import io
 import re
 import fnmatch
 import logging
-import configparser
 from pathlib import Path
 from itertools import chain
 from datetime import date, datetime, timedelta
@@ -11,6 +10,8 @@ from dateutil import rrule
 from dateutil.easter import easter
 from dateutil.tz import gettz
 
+import toml
+
 from . import utils
 from .db import client
 from .timezones import zones
@@ -18,7 +19,67 @@ from .timezones import zones
 logger = logging.getLogger(__name__)
 
 DEFAULT_FORMAT = "%Y-%m-%d %H:%M:%S%z (%Z) %jd%Ww (%C) [%O]"
+DEFAULT_TOML = f"""\
+[calendar]
+months = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+]
+days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
+[holidays.US]
+# Relative to Easter
+"Easter" = "Easter +0"
+"Ash Wednesday" = "Easter -46"
+"Mardi Gras" = "Easter -47"
+"Palm Sunday" = "Easter -7"
+"Good Friday" = "Easter -2"
+
+# Floating holidays
+"Memorial Day" = "Last Mon in May"
+"MLK Day" = "3rd Mon in Jan"
+"Presidents' Day" = "3rd Mon in Feb"
+"Mother's Day" = "2nd Sun in May"
+"Father's Day" = "3rd Sun in Jun"
+"Labor" = "1st Mon in Sep"
+"Columbus Day" = "2nd Mon in Oct"
+"Thanksgiving" = "4th Thr in Nov"
+
+# Fixed holidays
+"New Year's Day" = "Jan 1"
+"Valentine's Day" = "Feb 14"
+"St. Patrick's Day" = "Mar 17"
+"Juneteenth" = "Jun 19"
+"Independence Day" = "Jul 4"
+"Halloween" = "Oct 31"
+"Veterans Day" = "Nov 11"
+"Christmas" = "Dec 25"
+
+[lunar]
+phases = [
+    "New Moon",
+    "Waxing Crescent",
+    "First Quarter",
+    "Waxing Gibbous",
+    "Full Moon",
+    "Waning Gibbous",
+    "Last Quarter",
+    "Waning Crescent",
+]
+
+[formats]
+default = "{DEFAULT_FORMAT}"
+"""
 
 class WhenError(Exception):
     pass
@@ -28,20 +89,44 @@ class UnknownSourceError(WhenError):
     pass
 
 
+class Settings:
+    def __init__(self):
+        self.defaults = toml.loads(DEFAULT_TOML)
+        self.data = self.defaults.copy()
+        name = ".whenrc.toml"
+        self.read_from = self.read(Path.cwd() / name, Path.home() / name)
+
+    def __getitem__(self, key):
+        return self.data[key]
+
+    def read(self, *paths):
+        found = []
+        for path in paths:
+            try:
+                data = toml.load(path)
+            except FileNotFoundError:
+                pass
+            else:
+                found.append(path)
+                self.data.update(data)
+        return found
+
+    def write_text(self):
+        from pprint import pprint
+        pprint(self.data)
+        print("-" * 40)
+        text = f"# Read from {''.join(self.read_from)}\n" if self.read_from else ""
+        return f"{text}{toml.dumps(self.data)}"
+
+
+settings = Settings()
+
 class LunarPhase:
     JULIAN_OFFSET = 1721424.5
     LUNAR_CYCLE = 29.53
     KNOWN_NEW_MOON = 2451549.5
-    TABLE = [
-        ("🌑", "New Moon"),
-        ("🌒", "Waxing Crescent"),
-        ("🌓", "First Quarter"),
-        ("🌔", "Waxing Gibbous"),
-        ("🌕", "Full Moon"),
-        ("🌖", "Waning Gibbous"),
-        ("🌗", "Last Quarter"),
-        ("🌘", "Waning Crescent"),
-    ]
+    EMOJIS = "🌑🌒🌓🌔🌕🌖🌗🌘"
+    NAMES = settings["lunar"]["phases"]
 
     def __init__(self, dt=None, dt_fmt="%a, %b %d %Y"):
         self.dt = dt or datetime.now()
@@ -51,7 +136,8 @@ class LunarPhase:
         new_moons = (self.julian - self.KNOWN_NEW_MOON) / self.LUNAR_CYCLE
         self.age = (new_moons - int(new_moons)) * self.LUNAR_CYCLE
         self.index = int(self.age / (self.LUNAR_CYCLE / 8))
-        self.emoji, self.name = self.TABLE[self.index]
+        self.emoji = self.EMOJIS[self.index]
+        self.name = self.NAMES[self.index]
 
     @property
     def description(self):
@@ -60,58 +146,6 @@ class LunarPhase:
     def __str__(self):
         dt_fmt = self.dt.strftime(self.dt_fmt)
         return f"{dt_fmt} {self.description}"
-
-
-class Settings(configparser.ConfigParser):
-    def __init__(self):
-        super().__init__(interpolation=configparser.ExtendedInterpolation())
-        self.read_dict(
-            {
-                "holidays.US": {
-                    # Relative to Easter
-                    "Easter": "Easter +0",
-                    "Ash Wednesday": "Easter -46",
-                    "Mardi Gras": "Easter -47",
-                    "Palm Sunday": "Easter -7",
-                    "Good Friday": "Easter -2",
-                    # Floating holidays
-                    "Memorial Day": "Last Mon in May",
-                    "MLK Day": "3rd Mon in Jan",
-                    "Presidents' Day": "3rd Mon in Feb",
-                    "Mother's Day": "2nd Sun in May",
-                    "Father's Day": "3rd Sun in Jun",
-                    "Labor": "1st Mon in Sep",
-                    "Columbus Day": "2nd Mon in Oct",
-                    "Thanksgiving": "4th Thr in Nov",
-                    # Fixed holidays
-                    "New Year's Day": "Jan 1",
-                    "Valentine's Day": "Feb 14",
-                    "St. Patrick's Day": "Mar 17",
-                    "Juneteenth": "Jun 19",
-                    "Independence Day": "Jul 4",
-                    "Halloween": "Oct 31",
-                    "Veterans Day": "Nov 11",
-                    "Christmas": "Dec 25",
-                },
-                "formats": {
-                    "default": DEFAULT_FORMAT,
-                }
-            }
-        )
-        name = ".whenrc"
-        paths = [Path.cwd() / name, Path.home() / name]
-        self.read_from = self.read(paths)
-
-    def write_text(self):
-        fobj = io.StringIO()
-        self.write(fobj)
-        return fobj.getvalue()
-
-    def optionxform(self, option):
-        return option
-
-
-settings = Settings()
 
 
 def holidays(co="US", ts=None):
@@ -162,7 +196,7 @@ def holidays(co="US", ts=None):
     ]
 
     results = []
-    for title, expr in settings[f"holidays.{co}"].items():
+    for title, expr in settings["holidays"][co].items():
         for regex, callback in strategies:
             m = regex.match(expr)
             if m:
@@ -233,8 +267,8 @@ class Formatter:
     def rfc2822_format(self, result):
         dt = result.dt
         tt = dt.timetuple()
-        mo = utils.MONTH_ABBRS[tt[1] - 1]
-        weekday = utils.WEEKDAY_ABBRS[tt[6]]
+        mo = settings["calendar"]["months"][tt[1] - 1]
+        weekday = settings["calendar"]["days"][tt[6]]
 
         return (
             f"{weekday}, {tt[2]:02} {mo} {tt[0]:04} {tt[3]:02}:{tt[4]:02}:{tt[5]:02} "

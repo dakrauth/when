@@ -1,21 +1,4 @@
 #!/usr/bin/env python
-"""
-Examples:
-=========
-
-# Show the time in a given source city or time zone
-
-when --source New York City
-when --source America/New_York
-
-# Show the specified time at a given source in local time
-
-when --source Paris,FR 21:35
-
-# Show the specified time at a given source in the target locale's time
-
-when --target Bangkok --source Seattle
-"""
 import logging
 import argparse
 
@@ -45,10 +28,14 @@ def db_main(args, db):
     return 0
 
 
+def config_main(args):
+    print(core.settings.write_text())
+    return 0
+
+
 def get_parser():
     parser = argparse.ArgumentParser(
         description="Convert times to and from time zones or cities",
-        epilog=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
@@ -111,6 +98,14 @@ def get_parser():
         version="%(prog)s (version {version})".format(version=VERSION),
     )
     parser.add_argument("--pdb", dest="pdb", action="store_true", default=False)
+
+    # config options
+    parser.add_argument(
+        "--config",
+        action="store_true",
+        default=False,
+        help="Toggle config mode. With no other option, dump current configuration settings",
+    )
 
     # DB options
     parser.add_argument(
@@ -178,6 +173,8 @@ def main(sys_args, when=None):
     when = when or core.When()
     if args.db:
         return db_main(args, when.db)
+    elif args.config:
+        return config_main(args)
     elif args.holidays:
         return core.holidays(
             args.holidays, args.timestamp[0] if args.timestamp else None

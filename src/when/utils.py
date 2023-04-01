@@ -11,22 +11,6 @@ from dateutil.tz import tzfile
 from dateutil.zoneinfo import get_zonefile_instance
 from dateutil.parser import parse as dt_parse
 
-MONTH_ABBRS = [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
-]
-WEEKDAY_ABBRS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-
 utc_offset_re = re.compile(r"\b(UTC([+-]\d\d?)(?::(\d\d))?)")
 
 
