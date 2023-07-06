@@ -54,7 +54,7 @@ class City(namedtuple("City", ["id", "name", "ascii", "co", "sub", "tz"])):
     def __str__(self):
         bits = [self.name, self.co]
         if not self.sub_number_re.search(self.sub):
-            bits.append(self.sub)
+            bits.insert(1, self.sub)
 
         return ", ".join(bits)
 
@@ -70,9 +70,7 @@ class DB:
     MEMORY_DB = ":memory:"
 
     def __init__(self, filename=None):
-        self.filename = (
-            None if filename == self.MEMORY_DB else Path(filename or DB_FILENAME)
-        )
+        self.filename = None if filename == self.MEMORY_DB else Path(filename or DB_FILENAME)
         self._memory = None
 
     @property
@@ -147,9 +145,7 @@ class DB:
                 like_exprs = [f"({bit} AND c.co = :co)" for bit in like_exprs]
             elif nbits == 3:
                 value, sub, co = bits
-                like_exprs = [
-                    f"({bit} AND c.co = :co AND c.sub = :sub)" for bit in like_exprs
-                ]
+                like_exprs = [f"({bit} AND c.co = :co AND c.sub = :sub)" for bit in like_exprs]
             elif nbits > 4:
                 raise ValueError(f"Invalid search expression: {value}")
 

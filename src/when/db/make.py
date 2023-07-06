@@ -107,11 +107,7 @@ def process_geonames_txt(filename, minimum_population=15_000, admin_1=None):
             if (
                 (fcode in skip)
                 or (fcode in skip_if and (pop < minimum_population))
-                or (
-                    fcode == "PPLA5"
-                    and name.startswith("Marseille")
-                    and name[-1].isdigit()
-                )
+                or (fcode == "PPLA5" and name.startswith("Marseille") and name[-1].isdigit())
             ):
                 skipped[fcode] += 1
                 continue

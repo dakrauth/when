@@ -1,19 +1,16 @@
 import os
-import sys
 import time
 from datetime import datetime
-from unittest.mock import patch
 from dateutil.tz import gettz
 
 from when.core import Formatter
-from when import utils
-from when.db import client
 from when.cli import main as when_main
 from when.core import holidays
 from when.timezones import zones
 
-#"NYC", 5128581
-#"DC", 4140963
+# "NYC", 5128581
+# "DC", 4140963
+
 
 def test_db_search_singleton(db):
     result = db.search("maastricht")
@@ -51,7 +48,7 @@ def test_iso_formatter(when):
     fmt = Formatter("iso")
     result = when.convert("Jan 10, 2023 4:30am", sources="New York City", targets="Seoul")
     assert len(result) == 1
-    assert fmt(result[0]).startswith("2023-01-10T18:30:00+09:00")
+    assert fmt(result[0]).startswith("2023-01-10T18:30:00+0900")
 
 
 def test_rfc_formatter(when):
@@ -91,7 +88,7 @@ def test_main_tz(capsys, when):
         when_main(argv, when)
         captured = capsys.readouterr()
         output = captured.out
-        assert output.startswith("2023-01-10 18:30:00+0900 (Asia/Seoul) 010d02w")
+        assert output.startswith("2023-01-10 18:30:00+0900 (KST, Asia/Seoul) 010d02w (Seoul, KR)")
     finally:
         os.environ["TZ"] = orig_tz
         time.tzset()

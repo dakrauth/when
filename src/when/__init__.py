@@ -1,8 +1,8 @@
 """
-Calculate and convert times across time zones.
+Calculate and convert times across time zones and cities of significant population.
 """
 
-__version__ = (2, 1, 0)
+__version__ = (3, 0, 0)
 VERSION = ".".join(str(i) for i in __version__)
 
 

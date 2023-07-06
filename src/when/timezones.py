@@ -341,9 +341,7 @@ class Zones:
                 for value, name in self.abbrs[lower]:
                     values.append(
                         (
-                            gettz(value)
-                            if isinstance(value, str)
-                            else tzoffset(name, value),
+                            gettz(value) if isinstance(value, str) else tzoffset(name, value),
                             name,
                         )
                     )

@@ -55,7 +55,7 @@ def timer(func):
         print(colorize(f"⌛️ {func.__name__}: {duration}"), file=sys.stderr)
         return result
 
-    return inner if os.getenv("WHEN_TIMER") else func
+    return inner if os.getenv("WHENTIMER") else func
 
 
 @timer
@@ -63,8 +63,8 @@ def fetch(url):
     r = requests.get(url)
     if r.ok:
         return r.content
-    else:
-        raise RuntimeError(f"{r.status_code}: {url}")
+
+    raise RuntimeError(f"{r.status_code}: {url}")
 
 
 def get_timezone_db_name(tz):
@@ -80,8 +80,10 @@ def get_timezone_db_name(tz):
     if filename == "/etc/localtime":
         filename = str(Path(filename).resolve())
 
-    if "/zonename/" in filename:
-        return filename.rsplit("/zoneinfo/", 1)[1]
+    if "/zoneinfo/" in filename:
+        filename = filename.rpartition("/zoneinfo/")[-1]
+
+    return filename
 
 
 def all_zones():

@@ -27,7 +27,11 @@ setup(
     package_dir={"": "src"},
     include_package_data=True,
     entry_points={"console_scripts": ["when = when.__main__:main",]},
-    install_requires=["python-dateutil>=2.8.0", "toml>=0.10.2", "requests"],
+    install_requires=[
+        "python-dateutil>=2.8.0",
+        "toml>=0.10.2",
+        "requests",
+    ],
     classifiers=[
         "Environment :: Console",
         "Intended Audience :: Developers",

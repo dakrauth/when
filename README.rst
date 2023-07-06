@@ -51,8 +51,8 @@ a GeoNames ID of 5128581. Pass that to the ``--alias`` option along with another
 you would like to use::
 
     $ when --db --alias 5128581 NYC
-    $ when NYC
-    2023-03-26 05:24:02-0400 (America/New_York) 085d12w (New York City, US, New York) [🌒 Waxing Crescent]
+    $ when --source NYC
+    2023-07-06 07:58:33-0400 (EDT, America/New_York) 187d27w (New York City, New York, US)[🌕 Full Moon]
 
 
 Example
@@ -61,24 +61,24 @@ Example
 .. code:: bash
 
     $ when
-    2023-02-11 17:43:44+0900 (KST) 042d06w  [🌖 Waning Gibbous]
+    2023-07-06 20:58:02+0900 (KST, Asia/Seoul) 187d27w [🌕 Full Moon]
 
     $ when --source CST
-    2023-02-11 02:44:22-0600 (Central Standard Time) 042d06w  [🌖 Waning Gibbous]
-    2023-02-11 12:44:22+0400 (Caucasus Standard Time) 042d06w  [🌖 Waning Gibbous]
-    2023-02-11 16:44:22+0800 (China Standard Time) 042d06w  [🌖 Waning Gibbous]
-    2023-02-11 03:44:22-0500 (Cuba Standard Time) 042d06w  [🌖 Waning Gibbous]
+    2023-07-06 06:58:54-0500 (CDT, Central Standard Time) 187d27w [🌕 Full Moon]
+    2023-07-06 15:58:54+0400 (+04, Caucasus Standard Time) 187d27w [🌕 Full Moon]
+    2023-07-06 19:58:54+0800 (CST, China Standard Time) 187d27w [🌕 Full Moon]
+    2023-07-06 07:58:54-0400 (CDT, Cuba Standard Time) 187d27w [🌕 Full Moon]
 
     $ when --source Paris
-    2023-02-11 09:45:11+0100 (Europe/Paris) 042d06w  (Villeparisis, FR, Île-de-France) [🌖 Waning Gibbous]
-    2023-02-11 09:45:11+0100 (Europe/Paris) 042d06w  (Paris, FR, Île-de-France) [🌖 Waning Gibbous]
-    2023-02-11 09:45:11+0100 (Europe/Paris) 042d06w  (Cormeilles-en-Parisis, FR, Île-de-France) [🌖 Waning Gibbous]
-    2023-02-11 03:45:11-0500 (America/Port-au-Prince) 042d06w  (Fond Parisien, HT, Ouest) [🌖 Waning Gibbous]
-    2023-02-11 02:45:11-0600 (America/Chicago) 042d06w  (Paris, US, Texas) [🌖 Waning Gibbous]
+    2023-07-06 13:59:25+0200 (CEST, Europe/Paris) 187d27w (Villeparisis, Île-de-France, FR)[🌕 Full Moon]
+    2023-07-06 13:59:25+0200 (CEST, Europe/Paris) 187d27w (Paris, Île-de-France, FR)[🌕 Full Moon]
+    2023-07-06 13:59:25+0200 (CEST, Europe/Paris) 187d27w (Cormeilles-en-Parisis, Île-de-France, FR)[🌕 Full Moon]
+    2023-07-06 07:59:25-0400 (EDT, America/Port-au-Prince) 187d27w (Fond Parisien, Ouest, HT)[🌕 Full Moon]
+    2023-07-06 06:59:25-0500 (CDT, America/Chicago) 187d27w (Paris, Texas, US)[🌕 Full Moon]
 
     $ when --source "San Francisco,US" --target America/New_York Mar 7 1945 7:00pm
-    1945-03-07 22:00:00-0400 (America/New_York) 066d10w  [🌘 Waning Crescent]
-    1945-03-07 22:00:00-0400 (America/New_York) 066d10w  [🌘 Waning Crescent]
+    1945-03-07 22:00:00-0400 (EWT, America/New_York) 066d10w [🌘 Waning Crescent]
+    1945-03-07 22:00:00-0400 (EWT, America/New_York) 066d10w [🌘 Waning Crescent]
 
 
 Develop
