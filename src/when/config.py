@@ -244,6 +244,7 @@ settings = Settings()
 
 def strftime_docs():
     import prettytable
+
     pt = prettytable.PrettyTable(
         field_names=["Spec", "Replacement", "Example", "Note"],
         max_width=72,
@@ -258,5 +259,5 @@ def strftime_docs():
     )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     strftime_docs()
