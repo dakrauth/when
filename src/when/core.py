@@ -1,4 +1,5 @@
 import re
+import json
 import fnmatch
 import logging
 from itertools import chain
@@ -6,7 +7,6 @@ from datetime import date, datetime, timedelta
 
 from dateutil import rrule
 from dateutil.easter import easter
-from dateutil.tz import gettz
 
 from . import utils
 from .db import client
@@ -100,15 +100,23 @@ def holidays(co="US", ts=None):
 
 class TimeZoneDetail:
     def __init__(self, tz=None, name=None, city=None):
-        self.tz = tz or gettz()
+        self.tz = tz or utils.gettz()
         self.city = city
         self.name = name
         if self.name is None:
             self.name = utils.get_timezone_db_name(self.tz)
 
-    def zone_name(self, dt):
-        tzname = self.tz.tzname(dt)
-        return self.name or (self.city and self.city.tz) or tzname
+    def to_dict(self, dt=None):
+        dt = dt or self.now()
+        offset = int(self.tz.utcoffset(dt).total_seconds())
+        return {
+            "name": self.name or self.zone_name(dt),
+            "city": self.city.to_dict() if self.city else None,
+            "utcoffset": [offset // 3600, offset % 3600 // 60, offset % 60],
+        }
+
+    def zone_name(self, dt=None):
+        return self.name or (self.city and self.city.tz) or self.tz.tzname(dt or self.now())
 
     def now(self):
         return datetime.now(self.tz)
@@ -247,6 +255,13 @@ class Result:
         self.zone = zone
         self.source = source
 
+    def to_dict(self):
+        return {
+            "iso": self.dt.isoformat(),
+            "zone": self.zone.to_dict(self.dt),
+            "source": self.source.to_dict() if self.source else None,
+        }
+
     def convert(self, tz):
         return Result(self.dt.astimezone(tz.tz), tz, self)
 
@@ -271,7 +286,7 @@ class When:
         if not value:
             value = self.tz_dict[name]
 
-        return (gettz(value), name)
+        return (utils.gettz(value), name)
 
     def find_zones(self, objs=None):
         if not objs:
@@ -329,3 +344,16 @@ class When:
             results = [result.convert(tz) for result in results for tz in target_zones]
 
         return results
+
+    def as_json(self, timestamp="", sources=None, targets=None, **json_kwargs):
+        return json.dumps(
+            [
+                result.to_dict()
+                for result in self.convert(utils.parse_source_input(timestamp), sources, targets)
+            ],
+            **json_kwargs,
+        )
+
+    def format_results(self, formatter, timestamp="", sources=None, targets=None):
+        for result in self.convert(utils.parse_source_input(timestamp), sources, targets):
+            yield formatter(result)

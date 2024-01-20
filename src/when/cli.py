@@ -107,7 +107,13 @@ def get_parser():
         action="version",
         version="%(prog)s (version {version})".format(version=VERSION),
     )
-    parser.add_argument("--pdb", dest="pdb", action="store_true", default=False)
+
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        default=False,
+        help="Output results in nicely formatted JSON",
+    )
 
     # config options
     parser.add_argument(
@@ -190,26 +196,23 @@ def main(sys_args, when=None):
         sys.exit(0)
 
     when = when or core.When()
+    targets = utils.all_zones() if args.all else args.target
+
     if args.db:
         return db_main(args, when.db)
     elif args.config:
         return config_main(args)
     elif args.holidays:
         return core.holidays(args.holidays, args.timestamp[0] if args.timestamp else None)
-
-    ts = utils.parse_source_input(args.timestamp)
-    targets = args.target
-    if args.all:
-        targets = utils.all_zones()
-
-    formatter = core.Formatter(args.format)
-    try:
-        results = when.convert(ts, args.source, targets)
-    except core.UnknownSourceError as e:
-        print(e)
-        return 1
-
-    for result in results:
-        print(formatter(result))
+    elif args.json:
+        print(when.as_json(args.timestamp, targets, args.source, indent=2))
+    else:
+        formatter = core.Formatter(args.format)
+        try:
+            for output in when.format_results(formatter, args.timestamp, args.source, targets):
+                print(output)
+        except core.UnknownSourceError as e:
+            print(e, file=sys.stderr)
+            return 1
 
     return 0

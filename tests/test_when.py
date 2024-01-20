@@ -1,5 +1,6 @@
 import os
 import time
+import json
 from datetime import datetime
 from dateutil.tz import gettz
 
@@ -35,6 +36,44 @@ def test_iana_src_iana_tgt(when):
     expect = datetime(2023, 1, 10, 18, 30, tzinfo=gettz("Asia/Seoul"))
     assert len(result) == 1
     assert result[0].dt == expect
+
+
+def test_json_output(when):
+    result = json.loads(when.as_json("Jan 19, 2024 22:00", sources="Lahaina", targets="Seoul"))
+    expected = json.loads(
+        """[
+      {
+        "iso": "2024-01-20T17:00:00+09:00",
+        "zone": {
+          "name": "Asia/Seoul",
+          "city": {
+            "name": "Seoul",
+            "ascii": "Seoul",
+            "country": "KR",
+            "tz": "Asia/Seoul",
+            "subnational": "Seoul"
+          },
+          "utcoffset": [9, 0, 0]
+        },
+        "source": {
+          "iso": "2024-01-19T22:00:00-10:00",
+          "zone": {
+            "name": "Pacific/Honolulu",
+            "city": {
+              "name": "Lahaina",
+              "ascii": "Lahaina",
+              "country": "US",
+              "tz": "Pacific/Honolulu",
+              "subnational": "Hawaii"
+            },
+            "utcoffset": [-10, 0, 0]
+          },
+          "source": null
+        }
+      }
+    ]"""
+    )
+    assert result == expected
 
 
 def test_city_src_city_tgt(when):

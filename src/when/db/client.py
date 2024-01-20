@@ -53,13 +53,20 @@ class City(namedtuple("City", ["id", "name", "ascii", "co", "sub", "tz"])):
 
     def __str__(self):
         bits = [self.name, self.co]
-        if not self.sub_number_re.search(self.sub):
+        if not self.sub_number_re.search(self.sub) and self.sub != self.name:
             bits.insert(1, self.sub)
 
         return ", ".join(bits)
 
     def __repr__(self):
         return f"City({self.ascii},{self.sub},{self.co} {self.tz})"
+
+    def to_dict(self):
+        dct = {"name": self.name, "ascii": self.ascii, "country": self.co, "tz": self.tz}
+        if not self.sub_number_re.search(self.sub):
+            dct["subnational"] = self.sub
+
+        return dct
 
 
 class DBError(RuntimeError):

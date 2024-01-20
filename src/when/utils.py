@@ -7,11 +7,21 @@ from pathlib import Path
 from datetime import datetime
 
 import requests
-from dateutil.tz import tzfile
+from dateutil.tz import tzfile, gettz as _gettz
 from dateutil.zoneinfo import get_zonefile_instance
 from dateutil.parser import parse as dt_parse
 
 utc_offset_re = re.compile(r"\b(UTC([+-]\d\d?)(?::(\d\d))?)")
+
+
+def gettz(name=None):
+    tz = _gettz(name)
+    if name is None:
+        name = get_timezone_db_name(tz)
+        if name is not None:
+            tz = _gettz(name)
+
+    return tz
 
 
 def parse(value):
