@@ -3,6 +3,7 @@
 
 def main():
     import sys
+
     from . import cli
 
     return sys.exit(cli.main(sys.argv[1:]))

@@ -1,5 +1,5 @@
 2751283	Maastricht	Maastricht	x	50.84833	5.68889	P	PPLA	NL		05	0935			122378		56	Europe/Amsterdam	2019-09-05
-5849996	Lahaina	Lahaina	x	20.87429	-156.67663	P	PPL	US		HI	009			11704	1	11	Pacific/Honolulu	2017-09-05
+5849996	Lāhaina	Lahaina	x	20.87429	-156.67663	P	PPL	US		HI	009			11704	1	11	Pacific/Honolulu	2017-09-05
 1835848	Seoul	Seoul	x	37.566	126.9784	P	PPLC	KR		11				10349312		38	Asia/Seoul	2022-03-03
 5128581	New York City	New York City	x	40.71427	-74.00597	P	PPL	US		NY				8804190	10	57	America/New_York	2022-03-09
 4140963	Washington	Washington	x	38.89511	-77.03637	P	PPLC	US		DC	001			689545	7	6	America/New_York	2022-10-23

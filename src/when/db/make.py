@@ -1,19 +1,19 @@
 import io
 import logging
 import zipfile
-from pathlib import Path
 from collections import defaultdict
+from pathlib import Path
 
 from .. import utils
 
 logger = logging.getLogger(__name__)
 
 HERE_DIR = Path(__file__).parent
-GEONAMES_CITIES_URL_FMT = "http://download.geonames.org/export/dump/cities{}.zip"
+GEONAMES_CITIES_URL_FMT = "https://download.geonames.org/export/dump/cities{}.zip"
 GEONAMES_TZ_URL = "https://download.geonames.org/export/dump/timeZones.txt"
 GEONAMES_ADMIN1_URL = "https://download.geonames.org/export/dump/admin1CodesASCII.txt"
 CITY_FILE_SIZES = {
-    500,  # ~ 10M
+    500,  # ~10M
     1_000,  # ~7.8M
     5_000,  # ~3.9M
     15_000,  # ~2.3M
@@ -77,8 +77,8 @@ def process_geonames_txt(filename, minimum_population=15_000, admin_1=None):
     skip_if = {"PPL", "PPLL", "PPLS", "PPLF", "PPLR"}
     admin_1 = admin_1 or {}
     data = []
+    i = 0
     with open(filename) as fp:
-        i = 0
         for line in fp:
             i += 1
             (

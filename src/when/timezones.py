@@ -1,7 +1,7 @@
 import re
 import sys
-from dateutil.tz import gettz, tzoffset
 
+from dateutil.tz import gettz, tzoffset
 
 ALIASES = {
     "ACDT": [("Australia/Adelaide", "Australian Central Daylight Time")],

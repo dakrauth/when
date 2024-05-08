@@ -6,15 +6,13 @@ import sys
 with open("README.rst") as fp:
     long_description = fp.read()
 
-
 local_ctx = {}
 with open("src/when/__init__.py") as fp:
     exec(fp.read(), {}, local_ctx)
 
-
 setup(
     name="when",
-    version=local_ctx["VERSION"],
+    version=local_ctx["__version__"],
     description=local_ctx["__doc__"],
     license="MIT",
     long_description=long_description,
@@ -22,11 +20,15 @@ setup(
     author="David Krauth",
     author_email="dakrauth@gmail.com",
     url="https://github.com/dakrauth/when",
-    python_requires=">=3.8,<4",
+    python_requires=">=3.10,<4",
     packages=find_packages("src"),
     package_dir={"": "src"},
     include_package_data=True,
-    entry_points={"console_scripts": ["when = when.__main__:main",]},
+    entry_points={
+        "console_scripts": [
+            "when = when.__main__:main",
+        ]
+    },
     install_requires=[
         "python-dateutil>=2.8.0",
         "toml>=0.10.2",

@@ -1,17 +1,17 @@
-import re
-import json
 import fnmatch
+import json
 import logging
-from itertools import chain
+import re
 from datetime import date, datetime, timedelta
+from itertools import chain
 
 from dateutil import rrule
 from dateutil.easter import easter
 
-from . import utils
+from . import timezones, utils
+from .config import DEFAULT_FORMAT, FORMAT_SPECIFIERS, settings
 from .db import client
-from .timezones import zones
-from .config import settings, DEFAULT_FORMAT, FORMAT_SPECIFIERS
+from .lunar import LunarPhase
 
 logger = logging.getLogger(__name__)
 
@@ -22,33 +22,6 @@ class WhenError(Exception):
 
 class UnknownSourceError(WhenError):
     pass
-
-
-class LunarPhase:
-    JULIAN_OFFSET = 1721424.5
-    LUNAR_CYCLE = 29.53
-    KNOWN_NEW_MOON = 2451549.5
-    NAMES = settings["lunar"]["phases"]
-    EMOJIS = settings["lunar"]["emojis"]
-
-    def __init__(self, dt=None, dt_fmt=None):
-        self.dt = dt or datetime.now()
-        self.dt_fmt = dt_fmt or settings["lunar"]["format"]
-
-        self.julian = dt.toordinal() + self.JULIAN_OFFSET
-        new_moons = (self.julian - self.KNOWN_NEW_MOON) / self.LUNAR_CYCLE
-        self.age = (new_moons - int(new_moons)) * self.LUNAR_CYCLE
-        self.index = int(self.age / (self.LUNAR_CYCLE / 8))
-        self.emoji = self.EMOJIS[self.index]
-        self.name = self.NAMES[self.index]
-
-    @property
-    def description(self):
-        return f"{self.emoji} {self.name}"
-
-    def __str__(self):
-        dt_fmt = self.dt.strftime(self.dt_fmt)
-        return f"{dt_fmt} {self.description}"
 
 
 def holidays(co="US", ts=None):
@@ -93,56 +66,23 @@ def holidays(co="US", ts=None):
 
     mx = 2 + max(len(t[0]) for t in results)
     for title, dt in sorted(results, key=lambda o: o[1]):
+        delta = dt - date.today()
         print(
-            "{:.<{}}{} [{}]".format(title, mx, dt.strftime(holiday_fmt), LunarPhase(dt).description)
+            "{:.<{}}{} ({} days) [{}]".format(
+                title, mx, dt.strftime(holiday_fmt), delta.days, LunarPhase(dt).description
+            )
         )
 
 
-class TimeZoneDetail:
-    def __init__(self, tz=None, name=None, city=None):
-        self.tz = tz or utils.gettz()
-        self.city = city
-        self.name = name
-        if self.name is None:
-            self.name = utils.get_timezone_db_name(self.tz)
-
-    def to_dict(self, dt=None):
-        dt = dt or self.now()
-        offset = int(self.tz.utcoffset(dt).total_seconds())
-        return {
-            "name": self.name or self.zone_name(dt),
-            "city": self.city.to_dict() if self.city else None,
-            "utcoffset": [offset // 3600, offset % 3600 // 60, offset % 60],
-        }
-
-    def zone_name(self, dt=None):
-        return self.name or (self.city and self.city.tz) or self.tz.tzname(dt or self.now())
-
-    def now(self):
-        return datetime.now(self.tz)
-
-    def replace(self, dt):
-        return dt.replace(tzinfo=self.tz)
-
-    def __repr__(self):
-        bits = [f"tz={self.tz}"]
-        if self.name:
-            bits.append(f"name='{self.name}'")
-
-        if self.city:
-            bits.append(f"city='{self.city}'")
-
-        return f"<TimeZoneDetail({', '.join(bits)})>"
-
-
 class Formatter:
-    def __init__(self, format=DEFAULT_FORMAT):
+    def __init__(self, format=DEFAULT_FORMAT, delta=None):
         format = format or "default"
         self.format = settings["formats"]["named"].get(format, format)
 
         self.c99_specs = [fs[0][1] for fs in FORMAT_SPECIFIERS if "+" in fs[-1]]
         self.when_specs = [fs[0][2] for fs in FORMAT_SPECIFIERS if "!" == fs[-1]]
         self.cond_specs = [fs[0][2] for fs in FORMAT_SPECIFIERS if "!!" == fs[-1]]
+        self.delta = delta
 
     def token_replacement(self, result, value, pattern, specs, prefix):
         regex = "{}({})".format(pattern, "|".join(specs))
@@ -162,6 +102,12 @@ class Formatter:
 
         value = result.dt.strftime(value)
         value = self.token_replacement(result, value, r"%", self.c99_specs, "c99")
+        if self.delta:
+            # TODO: td = result.dt - result.zone.now()
+            delta = utils.format_timedelta(result.delta, short=self.delta == "short")
+            if delta:
+                value = f"{value}, {delta}"
+
         return value
 
     def when_cond_Z(self, result):
@@ -249,34 +195,77 @@ class Formatter:
         return f"{result.dt.isocalendar().week:02}"
 
 
+class TimeZoneDetail:
+    def __init__(self, tz=None, name=None, city=None):
+        self.tz = tz or utils.gettz()
+        self.city = city
+        self.name = name
+        if self.name is None:
+            self.name = utils.get_timezone_db_name(self.tz)
+
+    def to_dict(self, dt=None):
+        dt = dt or self.now()
+        offset = int(self.tz.utcoffset(dt).total_seconds())
+        return {
+            "name": self.name or self.zone_name(dt),
+            "city": self.city.to_dict() if self.city else None,
+            "utcoffset": [offset // 3600, offset % 3600 // 60, offset % 60],
+        }
+
+    def zone_name(self, dt=None):
+        return self.name or (self.city and self.city.tz) or self.tz.tzname(dt or self.now())
+
+    def now(self):
+        return datetime.now(self.tz).replace(microsecond=0)
+
+    def replace(self, dt):
+        return dt.replace(tzinfo=self.tz)
+
+    def __str__(self):
+        return self.name
+
+    def __repr__(self):
+        bits = [f"tz={self.tz}"]
+        if self.name:
+            bits.append(f"name='{self.name}'")
+
+        if self.city:
+            bits.append(f"city='{self.city}'")
+
+        return f"<TimeZoneDetail({', '.join(bits)})>"
+
+
 class Result:
-    def __init__(self, dt, zone, source=None):
+    def __init__(self, dt, zone, source=None, offset=None):
         self.dt = dt
         self.zone = zone
         self.source = source
+        self.offset = offset
+        if offset:
+            self.dt += offset
 
     def to_dict(self):
         return {
             "iso": self.dt.isoformat(),
             "zone": self.zone.to_dict(self.dt),
             "source": self.source.to_dict() if self.source else None,
+            "offset": utils.format_timedelta(self.offset, short=True) if self.offset else None,
         }
 
     def convert(self, tz):
         return Result(self.dt.astimezone(tz.tz), tz, self)
 
     def __repr__(self):
-        return f"<Result(dt={self.dt}, zone={self.zone})>"
+        return f"<Result(dt={self.dt}, zone={self.zone}, offset={self.offset})>"
 
 
 class When:
-    def __init__(self, tz_aliases=None, formatter=None, local_zone=None, db=None):
+    def __init__(self, tz_aliases=None, local_zone=None, db=None):
         self.db = db or client.DB()
-        self.aliases = tz_aliases if tz_aliases else {}
-        self.tz_dict = {}
-        for z in utils.all_zones():
-            self.tz_dict[z] = z
-            self.tz_dict[z.lower()] = z
+        self.aliases = tz_aliases or {}
+        self.tz_dict = {z: z for z in utils.all_zones()}
+        for key in list(self.tz_dict):
+            self.tz_dict[key.lower()] = self.tz_dict[key]
 
         self.tz_keys = list(self.tz_dict) + list(self.aliases)
         self.local_zone = local_zone or TimeZoneDetail()
@@ -288,10 +277,7 @@ class When:
 
         return (utils.gettz(value), name)
 
-    def find_zones(self, objs=None):
-        if not objs:
-            return [self.local_zone]
-
+    def find_zones(self, objs):
         if isinstance(objs, str):
             objs = [objs]
 
@@ -304,7 +290,7 @@ class When:
                     if name not in tzs:
                         tzs.setdefault(name, []).append(TimeZoneDetail(tz, name))
 
-            for tz, name in zones.get(o):
+            for tz, name in timezones.zones.get(o):
                 tzs.setdefault(name, []).append(TimeZoneDetail(tz, name))
 
             results = self.db.search(o)
@@ -312,48 +298,82 @@ class When:
                 tz, name = self.get_tz(c.tz)
                 tzs.setdefault(None, []).append(TimeZoneDetail(tz, name, c))
 
-        return list(chain.from_iterable(tzs.values()))
+        zones = list(chain.from_iterable(tzs.values()))
+        if not zones:
+            raise UnknownSourceError(f"Could not find matching resource: {', '.join(objs)}")
 
-    def parse_source_timestamp(self, ts, source_zones=None):
-        source_zones = source_zones or [self.local_zone]
-        if ts:
-            result = utils.parse(ts)
-            return [Result(tz.replace(result), tz) for tz in source_zones]
+        return zones
 
-        return [Result(tz.now(), tz) for tz in source_zones]
+    def convert(self, timestr, sources=None, targets=None, offset=None):
+        """
+        +================================================================+
+        |                  Without a given timestr                       |
+        +================================================================+
+        | targets? | sources? | result                                   |
+        +----------+----------+------------------------------------------+
+        |    N     |    N     | Show current local time info             |
+        +----------+----------+------------------------------------------+
+        |    Y     |    N     |                                          |
+        +----------+----------+ Show current times for targets / sources +
+        |    N     |    Y     |                                          |
+        +----------+----------+------------------------------------------+
+        |    Y     |    Y     | Show sources current time for targets    |
+        +================================================================+
+        |                  With a given timestr                          |
+        +================================================================+
+        +----------+----------+------------------------------------------+
+        | targets? | sources? | result                                   |
+        +----------+----------+------------------------------------------+
+        |    N     |    N     | Show time info for given timestr         |
+        +----------+----------+------------------------------------------+
+        |    Y     |    N     | Convert local timestr to targets         |
+        +----------+----------+------------------------------------------+
+        |    N     |    Y     | Convert sources timestr to local         |
+        +----------+----------+------------------------------------------+
+        |    Y     |    Y     | Convert sources timestr to targets       |
+        +----------+----------+------------------------------------------+
+        """
+        logger.debug("GOT ts %s, targets %s, sources: %s", timestr or '""', targets, sources)
+        local = self.local_zone
+        if not any([timestr, sources, targets]):
+            return [Result(local.now(), local, offset=offset)]
 
-    def convert(self, ts, sources=None, targets=None):
-        logger.debug("GOT ts %s, targets %s, sources: %s", ts, targets, sources)
-        target_zones = None
-        source_zones = None
-        if sources:
-            source_zones = self.find_zones(sources)
-            if not source_zones:
-                raise UnknownSourceError(f"Could not find sources: {', '.join(sources)}")
+        target_zones = self.find_zones(targets) if targets else [local]
+        source_zones = self.find_zones(sources) if sources else [local]
 
-        if targets:
-            target_zones = self.find_zones(targets)
-        else:
-            if sources and ts:
-                target_zones = self.find_zones()
+        if timestr:
+            dt = utils.parse_timestamp(timestr).replace(microsecond=0)
+            if not (sources or targets):
+                return [Result(local.replace(dt), local, offset=offset)]
+            else:
+                srcs = [Result(src.replace(dt), src, offset=offset) for src in source_zones]
+                return [sz.convert(tz) for sz in srcs for tz in target_zones]
 
-        results = self.parse_source_timestamp(ts, source_zones)
-        logger.debug("WHEN: %s", results)
+        if sources and targets:
+            srcs = [Result(src.now(), src, offset=offset) for src in source_zones]
+            return [sz.convert(tz) for sz in srcs for tz in target_zones]
 
-        if target_zones:
-            results = [result.convert(tz) for result in results for tz in target_zones]
+        items = source_zones if sources else target_zones
+        return [Result(i.now(), i, offset=offset) for i in items]
 
-        return results
+    def results(self, timestamp="", sources=None, targets=None, offset=None):
+        return self.convert(utils.parse_source_input(timestamp), sources, targets, offset)
 
-    def as_json(self, timestamp="", sources=None, targets=None, **json_kwargs):
-        return json.dumps(
-            [
-                result.to_dict()
-                for result in self.convert(utils.parse_source_input(timestamp), sources, targets)
-            ],
-            **json_kwargs,
-        )
+    def as_json(self, timestamp="", sources=None, targets=None, offset=None, **json_kwargs):
+        converts = self.results(timestamp, sources, targets, offset)
+        return json.dumps([convert.to_dict() for convert in converts], **json_kwargs)
 
-    def format_results(self, formatter, timestamp="", sources=None, targets=None):
-        for result in self.convert(utils.parse_source_input(timestamp), sources, targets):
-            yield formatter(result)
+    def grouped(self, results, offset=None):
+        groups = {}
+        keys = {}
+        for r in results:
+            if not r.source:
+                groups.setdefault(None, []).append(r)
+            else:
+                key = (r.dt, r.zone.name, r.zone.city)
+                if key not in keys:
+                    keys[key] = Result(r.dt, r.zone, offset=offset)
+
+                groups.setdefault(keys[key], []).append(r.source)
+
+        return groups

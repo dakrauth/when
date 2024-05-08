@@ -4,6 +4,13 @@ when 🌐🕐
 .. image:: https://github.com/dakrauth/when/actions/workflows/test.yml/badge.svg
     :target: https://github.com/dakrauth/when
 
+Scenario
+--------
+
+Your favorite sporting event, concert, performance, conference, or symposium is happening
+in Ulan Bator and all you know is the time of event is relative to the location city or time zone. 
+But wait! You need to know when that occurs relative to you while traveling to Seoul or Paris.
+
 Installation
 ------------
 
@@ -21,42 +28,46 @@ or::
 
 .. _pipx: https://pypa.github.io/pipx/
 
-
-Usage
------
-
 To access city names, you must install the cities database::
 
-    when --db
+    when --db [options]
+
+For ``options``:
 
 You can specify minimum city size by adding ``--size SIZE``, where *SIZE* can be one of:
 
-- ``15000`` - cities with population > 15000 or capitals
+- ``15000`` - cities with population > 15000 or country capitals
 - ``5000`` - cities with population > 5000 or seat of first-order admin division, i.e. US state
 - ``1000`` - cities with population > 1000 or seat of third order admin division
 - ``500`` - cities with population > 500 or seat of fourth-order admin division
 
 Additionally, you can filter non-admin division seats using ``--pop POP``.
 
-The appropriate GeoNames Gazetteer is downloaded and a Sqlite database generated. Once 
-installed, you can search the database::
+The appropriate GeoNames Gazetteer is downloaded and a Sqlite database generated.
 
-    $ when --db --search New York
+Usage
+-----
+
+Once installed, you can search the database::
+
+    $ when --db-search New York
     5106292, West New York, West New York, US, New Jersey, America/New_York
     5128581, New York City, New York City, US, New York, America/New_York
 
 
 Additionally, you can add aliases. In the example directly above, we see that New York City has
-a GeoNames ID of 5128581. Pass that to the ``--alias`` option along with another name that
+a GeoNames ID of 5128581. Pass that to the ``--db-alias`` option along with another name that
 you would like to use::
 
-    $ when --db --alias 5128581 NYC
+    $ when --db-alias 5128581 NYC
     $ when --source NYC
     2023-07-06 07:58:33-0400 (EDT, America/New_York) 187d27w (New York City, New York, US)[🌕 Full Moon]
 
 
 Example
 -------
+
+For the sake of clarity, in the following examples I am in Seoul, Korea.
 
 .. code:: bash
 
@@ -84,7 +95,7 @@ Example
 Develop
 -------
 
-Requirements Python 3.8+
+Requirements Python 3.10+
 
 .. code:: bash
 

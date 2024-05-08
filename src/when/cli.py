@@ -1,38 +1,14 @@
 #!/usr/bin/env python
-import sys
-import logging
 import argparse
+import logging
+import sys
+from pathlib import Path
 
-from . import core
-from . import VERSION
-from . import utils
-from .db import make
-from .config import settings, __doc__ as FORMAT_HELP
+from . import VERSION, core, db, utils
+from .config import __doc__ as FORMAT_HELP
+from .config import settings
 
 logger = logging.getLogger(__name__)
-
-
-def db_main(args, db):
-    value = " ".join(args.timestamp)
-    if args.search:
-        for row in db.search(value):
-            print(", ".join(str(c) for c in row))
-        return 0
-
-    if args.alias:
-        db.add_alias(value, args.alias)
-        return 0
-
-    filename = make.fetch_cities(args.size)
-    admin_1 = make.fetch_admin_1()
-    data = make.process_geonames_txt(filename, args.pop, admin_1)
-    db.create_db(data, admin_1)
-    return 0
-
-
-def config_main(args):
-    print(settings.write_text())
-    return 0
 
 
 def get_parser():
@@ -43,10 +19,23 @@ def get_parser():
     )
 
     parser.add_argument(
-        "timestamp",
+        "timestr",
         default="",
         nargs="*",
         help="Timestamp to parse, defaults to local time",
+    )
+
+    parser.add_argument(
+        "--delta",
+        choices=["long", "short"],
+        help="Show the delta to the given timestamp",
+    )
+
+    parser.add_argument(
+        "--offset",
+        type=utils.parse_timedelta_offet,
+        help="Show the difference from a given offset",
+        metavar=r"[+-]?(\d+wdhm)+",
     )
 
     parser.add_argument(
@@ -58,11 +47,15 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--prefix", action="store_true", default=False, help="Show when's directory"
+    )
+
+    parser.add_argument(
         "-s",
         "--source",
         action="append",
         help="""
-            Timezone / city to convert the timestamp from, defaulting to local time
+            Timezone / city to convert the timestr from, defaulting to local time
         """,
     )
 
@@ -71,7 +64,7 @@ def get_parser():
         "--target",
         action="append",
         help="""
-            Timezone / city to convert the timestamp to (globbing patterns allowed, can be comma
+            Timezone / city to convert the timestr to (globbing patterns allowed, can be comma
             delimited), defaulting to local time
         """,
     )
@@ -85,13 +78,23 @@ def get_parser():
     )
 
     parser.add_argument(
+        "-g",
+        "--group",
+        action="store_true",
+        default=False,
+        help="Group sources together under same target results",
+    )
+
+    parser.add_argument(
         "--all",
         action="store_true",
         default=False,
         help="Show times in all common timezones",
     )
 
-    parser.add_argument("--holidays", help="Show holidays for given country code.")
+    parser.add_argument(
+        "--holidays", help="Show holidays for given country code.", metavar="COUNTRY_CODE"
+    )
 
     parser.add_argument(
         "-v",
@@ -128,33 +131,53 @@ def get_parser():
         "--db",
         action="store_true",
         default=False,
-        help="Togge database mode, used with --search, --alias, --size, and --pop",
+        help="Create cities database, used with --db-size and --db-pop",
     )
 
     parser.add_argument(
-        "--search",
+        "--db-force",
         action="store_true",
         default=False,
-        help="Search database for the given city (used with --db)",
-    )
-    parser.add_argument(
-        "--alias", type=int, help="(Used with --db) Create a new alias from the city id"
+        help="Force an existing database to be overwritten",
     )
 
     parser.add_argument(
-        "--size",
+        "--db-search",
+        action="store_true",
+        default=False,
+        help="Search database for the given city with similar value",
+    )
+
+    parser.add_argument(
+        "--db-xsearch",
+        action="store_true",
+        default=False,
+        help="Search database for the given city with exact value",
+    )
+
+    parser.add_argument("--db-alias", type=int, help="Create a new alias from the city id")
+
+    parser.add_argument(
+        "--db-aliases",
+        action="store_true",
+        default=False,
+        help="Show all DB aliases",
+    )
+
+    parser.add_argument(
+        "--db-size",
         default=15_000,
         type=int,
-        help="(Used with --db) Geonames file size. Can be one of {}. ".format(
-            ", ".join(str(i) for i in make.CITY_FILE_SIZES)
+        help="Geonames file size. Can be one of {}. ".format(
+            ", ".join(str(i) for i in db.CITY_FILE_SIZES)
         ),
     )
 
     parser.add_argument(
-        "--pop",
+        "--db-pop",
         default=10_000,
         type=int,
-        help="(Used with --db) City population minimum.",
+        help="City population minimum.",
     )
 
     return parser
@@ -164,55 +187,98 @@ def log_config(verbosity):
     log_level = logging.WARNING
     log_format = "[%(levelname)s]: %(message)s"
     if verbosity:
-        log_format = "[%(levelname)s %(name)s:%(lineno)d]: %(message)s"
-        log_level = logging.DEBUG if verbosity > 1 else logging.INFO
+        log_format = "[%(levelname)s %(pathname)s:%(lineno)d]: %(message)s"
+        log_level = logging.INFO
+        if verbosity > 1:
+            log_level = logging.DEBUG
+            logging.getLogger("asyncio").setLevel(logging.WARNING)
 
     logging.basicConfig(level=log_level, format=log_format, force=True)
-    logger.debug("Configuration files read: %s", ", ".join(settings.read_from))
+    logger.debug("Configuration files read: %s", ", ".join(settings.read_from) or "None")
 
 
 def main(sys_args, when=None):
-    debug = "--pdb" in sys_args
-    if debug:
+    if "--pdb" in sys_args:
         sys_args.remove("--pdb")
+        breakpoint()
+
+    # A silly hack to handle negative offset patterns, otherwise argparse chokes
+    try:
+        offset_index = sys_args.index("--offset")
+    except ValueError:
+        pass
+    else:
+        if (
+            offset_index + 1 < len(sys_args)
+            and len(sys_args[offset_index + 1]) > 2
+            and sys_args[offset_index + 1][0] == "-"
+            and sys_args[offset_index + 1][1].isdigit()
+        ):
+            sys_args[offset_index + 1] = f"~{sys_args[offset_index + 1][1:]}"
 
     parser = get_parser()
     args = parser.parse_args(sys_args)
 
-    if debug:
-        try:
-            import ipdb as pdb
-        except ImportError:
-            import pdb
-        pdb.set_trace()
-
     log_config(args.verbosity)
+    logger.debug(args)
     if args.help:
         parser.print_help()
-        if args.verbosity:
-            print(FORMAT_HELP)
-        else:
-            print("\nUse -v option for details\n")
+        print(FORMAT_HELP if args.verbosity else "\nUse -v option for details\n")
         sys.exit(0)
 
-    when = when or core.When()
-    targets = utils.all_zones() if args.all else args.target
+    if args.config:
+        print(settings.write_text())
+        return 0
 
-    if args.db:
-        return db_main(args, when.db)
-    elif args.config:
-        return config_main(args)
-    elif args.holidays:
-        return core.holidays(args.holidays, args.timestamp[0] if args.timestamp else None)
-    elif args.json:
-        print(when.as_json(args.timestamp, targets, args.source, indent=2))
+    if args.prefix:
+        print(str(Path(__file__).parent))
+        return 0
+
+    if args.holidays:
+        return core.holidays(args.holidays, args.timestr[0] if args.timestr else None)
+
+    targets = utils.all_zones() if args.all else args.target
+    when = when or core.When()
+    if any(a for a in vars(args) if a.startswith("db") and getattr(args, a) is True):
+        return db.main(when.db, args)
+
+    if args.json:
+        print(
+            when.as_json(
+                args.timestr,
+                sources=args.source,
+                targets=targets,
+                indent=2,
+                offset=args.offset,
+            )
+        )
+        return 0
+
+    formatter = core.Formatter(args.format)
+    try:
+        results = when.results(
+            args.timestr,
+            targets=targets,
+            sources=args.source,
+            offset=args.offset,
+        )
+    except core.UnknownSourceError as e:
+        print(e, file=sys.stderr)
+        return 1
+
+    if args.group:
+        prefix = settings["formats"]["source"]["grouped"]
+        grouped = when.grouped(results, offset=args.offset)
+        for key in grouped:
+            if key is None:
+                for result in grouped[key]:
+                    print(formatter(result))
+            else:
+                print(formatter(key))
+                for src in grouped[key]:
+                    print(f"{prefix}{formatter(src)}")
     else:
-        formatter = core.Formatter(args.format)
-        try:
-            for output in when.format_results(formatter, args.timestamp, args.source, targets):
-                print(output)
-        except core.UnknownSourceError as e:
-            print(e, file=sys.stderr)
-            return 1
+        for result in results:
+            print(formatter(result))
 
     return 0

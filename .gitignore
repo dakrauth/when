@@ -111,3 +111,5 @@ src/when/db/when.db
 .vscode/
 .whenrc
 README.HTML
+.shutit_brew_list
+when.sqbpro

@@ -1,4 +1,5 @@
 import os
+import re
 import time
 import json
 from datetime import datetime
@@ -26,7 +27,7 @@ def test_db_search_multiple(db):
 
 
 def test_db_search_co(db):
-    result = db.search("paris,fr")
+    result = db.search("paris", "fr")
     assert len(result) == 1
     assert result[0].tz == "Europe/Paris"
 
@@ -44,6 +45,7 @@ def test_json_output(when):
         """[
       {
         "iso": "2024-01-20T17:00:00+09:00",
+        "offset": null,
         "zone": {
           "name": "Asia/Seoul",
           "city": {
@@ -57,10 +59,11 @@ def test_json_output(when):
         },
         "source": {
           "iso": "2024-01-19T22:00:00-10:00",
+          "offset": null,
           "zone": {
             "name": "Pacific/Honolulu",
             "city": {
-              "name": "Lahaina",
+              "name": "Lāhaina",
               "ascii": "Lahaina",
               "country": "US",
               "tz": "Pacific/Honolulu",
@@ -112,10 +115,10 @@ def test_abbr_src_abbr_tgt(when):
 
 
 def test_main_db_search(capsys, when):
-    argv = "--db --search maastricht".split()
+    argv = "--db-search maastricht".split()
     when_main(argv, when)
     captured = capsys.readouterr()
-    assert captured.out == "2751283, Maastricht, Maastricht, NL, 05, Europe/Amsterdam\n"
+    assert captured.out == "2751283 Maastricht, Limburg, NL, Europe/Amsterdam\n"
 
 
 def test_main_tz(capsys, when):
@@ -127,37 +130,43 @@ def test_main_tz(capsys, when):
         when_main(argv, when)
         captured = capsys.readouterr()
         output = captured.out
-        assert output.startswith("2023-01-10 18:30:00+0900 (KST, Asia/Seoul) 010d02w (Seoul, KR)")
+        expect = "2023-01-10 18:30:00+0900 (KST, Asia/Seoul) 010d02w (Seoul, KR"
+        assert output.startswith(expect)
     finally:
         os.environ["TZ"] = orig_tz
         time.tzset()
 
 
-HOLIDAYS = """\
-New Year's Day.....Sun, Jan 01 2023 [🌓 First Quarter]
-MLK Day............Mon, Jan 16 2023 [🌗 Last Quarter]
-Valentine's Day....Tue, Feb 14 2023 [🌗 Last Quarter]
-Presidents' Day....Mon, Feb 20 2023 [🌑 New Moon]
-Mardi Gras.........Tue, Feb 21 2023 [🌑 New Moon]
-Ash Wednesday......Wed, Feb 22 2023 [🌑 New Moon]
-St. Patrick's Day..Fri, Mar 17 2023 [🌗 Last Quarter]
-Palm Sunday........Sun, Apr 02 2023 [🌔 Waxing Gibbous]
-Good Friday........Fri, Apr 07 2023 [🌕 Full Moon]
-Easter.............Sun, Apr 09 2023 [🌖 Waning Gibbous]
-Mother's Day.......Sun, May 14 2023 [🌗 Last Quarter]
-Memorial Day.......Mon, May 29 2023 [🌓 First Quarter]
-Father's Day.......Sun, Jun 18 2023 [🌑 New Moon]
-Juneteenth.........Mon, Jun 19 2023 [🌑 New Moon]
-Independence Day...Tue, Jul 04 2023 [🌕 Full Moon]
-Labor..............Mon, Sep 04 2023 [🌖 Waning Gibbous]
-Columbus Day.......Mon, Oct 09 2023 [🌗 Last Quarter]
-Halloween..........Tue, Oct 31 2023 [🌕 Full Moon]
-Veterans Day.......Sat, Nov 11 2023 [🌘 Waning Crescent]
-Thanksgiving.......Thu, Nov 23 2023 [🌓 First Quarter]
-Christmas..........Mon, Dec 25 2023 [🌔 Waxing Gibbous]
-"""
+HOLIDAYS = [
+    r"New Year's Day.....Sun, Jan 01 2023 \([+-]\d+ days\) \[🌓 First Quarter\]",
+    r"MLK Day............Mon, Jan 16 2023 \([+-]\d+ days\) \[🌗 Last Quarter\]",
+    r"Valentine's Day....Tue, Feb 14 2023 \([+-]\d+ days\) \[🌗 Last Quarter\]",
+    r"Presidents' Day....Mon, Feb 20 2023 \([+-]\d+ days\) \[🌑 New Moon\]",
+    r"Mardi Gras.........Tue, Feb 21 2023 \([+-]\d+ days\) \[🌑 New Moon\]",
+    r"Ash Wednesday......Wed, Feb 22 2023 \([+-]\d+ days\) \[🌑 New Moon\]",
+    r"St. Patrick's Day..Fri, Mar 17 2023 \([+-]\d+ days\) \[🌗 Last Quarter\]",
+    r"Palm Sunday........Sun, Apr 02 2023 \([+-]\d+ days\) \[🌔 Waxing Gibbous\]",
+    r"Good Friday........Fri, Apr 07 2023 \([+-]\d+ days\) \[🌕 Full Moon\]",
+    r"Easter.............Sun, Apr 09 2023 \([+-]\d+ days\) \[🌖 Waning Gibbous\]",
+    r"Mother's Day.......Sun, May 14 2023 \([+-]\d+ days\) \[🌗 Last Quarter\]",
+    r"Memorial Day.......Mon, May 29 2023 \([+-]\d+ days\) \[🌓 First Quarter\]",
+    r"Father's Day.......Sun, Jun 18 2023 \([+-]\d+ days\) \[🌑 New Moon\]",
+    r"Juneteenth.........Mon, Jun 19 2023 \([+-]\d+ days\) \[🌑 New Moon\]",
+    r"Independence Day...Tue, Jul 04 2023 \([+-]\d+ days\) \[🌕 Full Moon\]",
+    r"Labor..............Mon, Sep 04 2023 \([+-]\d+ days\) \[🌖 Waning Gibbous\]",
+    r"Columbus Day.......Mon, Oct 09 2023 \([+-]\d+ days\) \[🌗 Last Quarter\]",
+    r"Halloween..........Tue, Oct 31 2023 \([+-]\d+ days\) \[🌕 Full Moon\]",
+    r"Veterans Day.......Sat, Nov 11 2023 \([+-]\d+ days\) \[🌘 Waning Crescent\]",
+    r"Thanksgiving.......Thu, Nov 23 2023 \([+-]\d+ days\) \[🌓 First Quarter\]",
+    r"Christmas..........Mon, Dec 25 2023 \([+-]\d+ days\) \[🌔 Waxing Gibbous\]",
+]
 
 
 def test_holidays(capsys):
     holidays(co="US", ts="2023")
-    assert capsys.readouterr().out == HOLIDAYS
+    lines = capsys.readouterr().out.splitlines()
+    for i, line in enumerate(lines):
+        expect = HOLIDAYS[i]
+        m = re.match(expect, line)
+        assert m is not None
+        assert m.end() == len(line)

@@ -94,8 +94,10 @@ Notes:
 + - C99 extension
 ! - when extension
 """
+
 import os
 from pathlib import Path
+
 import toml
 
 FORMAT_SPECIFIERS = [
@@ -149,8 +151,8 @@ FORMAT_SPECIFIERS = [
     ["%%", "A % sign", "%", ""],
     ["%!z", "When timezone name", "US/New_York", "!"],
     ["%!Z", "When timezone name, using conditional format in settings", "US/New_York", "!!"],
-    ["%!c", "City name", "Honolulu, HI, US", "!"],
-    ["%!C", "City name, using conditional format in settings", "Honolulu, HI, US", "!!"],
+    ["%!c", "City name", "Honolulu, Hawaii, US", "!"],
+    ["%!C", "City name, using conditional format in settings", "Honolulu, Hawaii, US", "!!"],
     ["%!l", "Lunar phase emoji", "🌖", "!"],
 ]
 
@@ -212,6 +214,9 @@ iso = "%Y-%m-%dT%H:%M:%S%z"
 [formats.conditional]
 Z = ", {{}}"
 C = "({{}})"
+
+[formats.source]
+grouped = " ↳ @"
 """
 
 
