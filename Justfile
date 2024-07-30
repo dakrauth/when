@@ -1,79 +1,134 @@
-PIP := "./venv/bin/python -m pip --require-venv"
+set export
+set positional-arguments
+
+DEV := "./.dev"
+VENV := DEV / "venv"
+BIN := VENV / "bin"
+PIP := BIN / "python -m pip --require-venv"
+
 
 # Display recipe listing
 help:
     @just --list
 
+info:
+    @echo dev = {{DEV}}
+    @echo venv = {{VENV}}
+    @echo bin = {{BIN}}
+    @echo pip = {{PIP}}
+
 # Update all dev dependencies
 update:
-    echo Installing when ...
+    @echo Installing when ...
     {{PIP}} install -U -e .
 
-    echo Installing dev dependencies ...
-    {{PIP}} install -U pytest coverage pytest-cov tox ipython flake8 black twine bump isort
+    @echo Installing dev dependencies ...
+    {{PIP}} install -U \
+        build \
+        pytest \
+        pytest-sugar \
+        pytest-clarity \
+        freezegun \
+        responses \
+        coverage \
+        tox \
+        ipython \
+        flake8 \
+        black \
+        twine \
+        bump \
+        isort
 
 # Create a virtual environment if needed
-venv: && update
+venv:
     #!/usr/bin/env bash
-    if [ ! -d ./venv ]; then
-        echo Creating virtual env in dir ./venv ...
-        python3 -m venv venv
+    if [ ! -d {{VENV}} ]; then
+        echo Creating virtual env in dir {{VENV}} ...
+        python3 -m venv {{VENV}}
     fi 
 
+# Create virtual environment and install / update all dev dependencies
+init: info venv update
+    @echo Initialization complete
+
 # Run test suite
-test:
-    ./venv/bin/pytest -vv -s
+test *args='':
+    {{BIN}}/pytest -vv -s --diff-width=60 "$@"
+
+# Run test suite
+retest:
+    {{BIN}}/pytest -vv -s --diff-width=60 --lf
+
+# Run all tox tests
+test-all:
+    {{BIN}}/tox
+
+# Run coverage report from test suite
+cov:
+    -{{BIN}}/coverage run -m pytest -vv -s
+    -{{BIN}}/coverage report --fail-under=80 src/when/timezones.py src/when/utils.py
+    {{BIN}}/coverage report
+    {{BIN}}/coverage html
+    echo HTML coverage report: {{DEV}}/coverage/index.html
+    # open {{DEV}}/coverage/index.html
 
 # Remove the virtual env dir
 rmvenv:
     #!/usr/bin/env bash
-    if [ -d ./venv ]; then
+    if [ -d {{VENV}} ]; then
         if [ -s $VIRTUAL_ENV ]; then
             echo You must now run `deactivate` manually
         fi
-        rm -rf ./venv
+        rm -rf {{VENV}}
     fi
-
-# Run coverage report from test suite
-cov:
-    ./venv/bin/pytest -vv -s --cov-config setup.cfg --cov-report html --cov-report term --cov=when
-    echo HTML coverage report: ./build/coverage/index.html
-    open ./build/coverage/index.html
 
 # Remove all *.pyc files and __pycache__ dirs
 clean:
     find . -type f -name "*.pyc" -delete
     find . -type d -name "__pycache__" -delete
 
-# Remove all test and coverage artifacts
-clean-test:
-    rm -rf .coverage
-    rm -rf ./pytest_cache ./.tox
+clean-dev:
+    rm -rf {{DEV}}
 
 # Remove all build and dist artifacts
 clean-build:
-    rm -rf ./src/when.egg-info ./dist ./build
+    rm -rf ./src/when.egg-info ./.dev/dist
 
 # Clean all build, test, and compile artifacts and remove venv
 [confirm('Remove all build, test, coverage, and compiled artifacts and delete venv?')]
-purge: clean clean-test rmvenv clean-build
+purge: clean clean-dev rmvenv clean-build
     echo All artifacts purged
+
+# Build sdist and wheel files for distribution
+build:
+    {{BIN}}/python -m build --outdir ./.dev/dist
 
 # Run linter and code formatter tools
 lint:
-    ./venv/bin/flake8 src/when tests
-    ./venv/bin/black --check --diff -l 100 src/when tests setup.py
+    @echo Linting...
+    -{{BIN}}/flake8 src/when tests
 
-# Show current version
-version:
-    #!/usr/bin/env python3
-    local_ctx = {}
-    with open("src/when/__init__.py") as fp:
-        exec(fp.read(), {}, local_ctx)
-    print(f"Current version: {local_ctx['VERSION']}")
+    @echo Format checks...
+    -{{BIN}}/black --check --diff -l 100 src/when tests
 
 # Launch sqlite data browser (macOS only)
 [macos]
 db:
-    open ./src/when/db/when.db
+    open `when --prefix`/db/when.db
 
+strftime:
+    #!/usr/bin/env python3
+    import prettytable
+    from when.config import FORMAT_SPECIFIERS
+    pt = prettytable.PrettyTable(
+        field_names=["Spec", "Replacement", "Example", "Note"],
+        max_width=72,
+    )
+    pt.align["Replacement"] = "l"
+    pt.align["Example"] = "l"
+    pt.hrules = True
+    pt.add_rows(FORMAT_SPECIFIERS)
+    print(
+        f"Format Specifiers:\n{pt.get_string()}\n\n"
+        "Notes:\n* - Locale-dependent\n+ - C99 extension\n! - when extension"
+    )

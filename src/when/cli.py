@@ -4,14 +4,14 @@ import logging
 import sys
 from pathlib import Path
 
-from . import VERSION, core, db, utils
-from .config import __doc__ as FORMAT_HELP
-from .config import settings
+from . import __version__, core, db, utils, lunar, exceptions
+from . import timezones
+from .config import Settings, __doc__ as FORMAT_HELP
 
 logger = logging.getLogger(__name__)
 
 
-def get_parser():
+def get_parser(settings):
     parser = argparse.ArgumentParser(
         description="Convert times to and from time zones or cities",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -33,7 +33,7 @@ def get_parser():
 
     parser.add_argument(
         "--offset",
-        type=utils.parse_timedelta_offet,
+        type=utils.parse_timedelta_offset,
         help="Show the difference from a given offset",
         metavar=r"[+-]?(\d+wdhm)+",
     )
@@ -108,7 +108,7 @@ def get_parser():
         "-V",
         "--version",
         action="version",
-        version="%(prog)s (version {version})".format(version=VERSION),
+        version="%(prog)s (version {version})".format(version=__version__),
     )
 
     parser.add_argument(
@@ -180,10 +180,25 @@ def get_parser():
         help="City population minimum.",
     )
 
+    parser.add_argument(
+        "--tz-alias",
+        action="store_true",
+        default=False,
+        help="Search for a time zone alias"
+    )
+
+    parser.add_argument(
+        "--fullmoon",
+        action="store_true",
+        default=False,
+        help="Show full moon(s) for given year or month. Can be in the format of: "
+        "'next' | 'prev' | YYYY[-MM]"
+    )
+
     return parser
 
 
-def log_config(verbosity):
+def log_config(verbosity, settings):
     log_level = logging.WARNING
     log_format = "[%(levelname)s]: %(message)s"
     if verbosity:
@@ -194,10 +209,13 @@ def log_config(verbosity):
             logging.getLogger("asyncio").setLevel(logging.WARNING)
 
     logging.basicConfig(level=log_level, format=log_format, force=True)
-    logger.debug("Configuration files read: %s", ", ".join(settings.read_from) or "None")
+    logger.debug(
+        "Configuration files read: %s",
+        ", ".join(str(s) for s in settings.read_from) if settings.read_from else "None"
+    )
 
 
-def main(sys_args, when=None):
+def main(sys_args, when=None, settings=None):
     if "--pdb" in sys_args:
         sys_args.remove("--pdb")
         breakpoint()
@@ -216,15 +234,18 @@ def main(sys_args, when=None):
         ):
             sys_args[offset_index + 1] = f"~{sys_args[offset_index + 1][1:]}"
 
-    parser = get_parser()
+    if settings is None:
+        settings = when.settings if when else Settings()
+
+    parser = get_parser(settings)
     args = parser.parse_args(sys_args)
 
-    log_config(args.verbosity)
+    log_config(args.verbosity, settings)
     logger.debug(args)
     if args.help:
         parser.print_help()
         print(FORMAT_HELP if args.verbosity else "\nUse -v option for details\n")
-        sys.exit(0)
+        return 0
 
     if args.config:
         print(settings.write_text())
@@ -235,12 +256,24 @@ def main(sys_args, when=None):
         return 0
 
     if args.holidays:
-        return core.holidays(args.holidays, args.timestr[0] if args.timestr else None)
+        return core.holidays(settings, args.holidays, args.timestr[0] if args.timestr else None)
+
+    if args.tz_alias:
+        for tz, name in timezones.zones.get(args.timestr[0] if args.timestr else ""):
+            print(f"{name:.<40}{tz}")
+
+        return 0
+
+    if args.fullmoon:
+        for result in lunar.full_moon(args.timestr[0] if args.timestr else ""):
+            print(result)
+
+        return 0
 
     targets = utils.all_zones() if args.all else args.target
-    when = when or core.When()
+    when = when or core.When(settings)
     if any(a for a in vars(args) if a.startswith("db") and getattr(args, a) is True):
-        return db.main(when.db, args)
+        return db.db_main(when.db, args)
 
     if args.json:
         print(
@@ -254,7 +287,7 @@ def main(sys_args, when=None):
         )
         return 0
 
-    formatter = core.Formatter(args.format)
+    formatter = core.Formatter(settings, args.format)
     try:
         results = when.results(
             args.timestr,
@@ -262,7 +295,7 @@ def main(sys_args, when=None):
             sources=args.source,
             offset=args.offset,
         )
-    except core.UnknownSourceError as e:
+    except exceptions.UnknownSourceError as e:
         print(e, file=sys.stderr)
         return 1
 

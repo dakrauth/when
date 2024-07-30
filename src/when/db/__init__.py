@@ -1,7 +1,6 @@
 import sys
 
-from . import make
-from .client import DBError
+from . import make, client
 
 CITY_FILE_SIZES = make.CITY_FILE_SIZES
 
@@ -21,10 +20,6 @@ def parse_search(value):
             return bits
 
 
-def alias(db, alias, value):
-    db.add_alias(" ".join(value), alias)
-
-
 def aliases(db):
     for row in db.aliases():
         alias, *details = row
@@ -38,14 +33,15 @@ def search(db, value, exact=False):
         print(f"{row.id:7} {row}")
 
 
-def create(db, size, pop, remove_existing=False):
-    filename = make.fetch_cities(size)
-    admin_1 = make.fetch_admin_1()
-    data = make.process_geonames_txt(filename, pop, admin_1)
+def create(db, size, pop, remove_existing=False, dirname=make.DB_DIR):
+    filename = make.fetch_cities(size, dirname=dirname)
+    admin_1 = make.fetch_admin_1(dirname=dirname)
+    with open(filename) as fp:
+        data = make.process_geonames_txt(fp, pop, admin_1)
     db.create_db(data, remove_existing)
 
 
-def main(db, args):
+def db_main(db, args):
     try:
         if args.db:
             create(db, args.db_size, args.db_pop, args.db_force)
@@ -54,11 +50,11 @@ def main(db, args):
         elif args.db_xsearch:
             search(db, args.timestr, True)
         elif args.db_alias:
-            alias(db, args.db_alias, args.timestr)
+            db.add_alias(" ".join(args.timestr), args.db_alias)
         elif args.db_aliases:
             aliases(db)
 
-    except DBError as err:
+    except client.DBError as err:
         print(f"{err}", file=sys.stderr)
         return -1
 

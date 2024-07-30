@@ -6,6 +6,7 @@ from collections import namedtuple
 from pathlib import Path
 
 from .. import utils
+from ..exceptions import DBError
 
 logger = logging.getLogger(__name__)
 
@@ -131,10 +132,6 @@ class City(namedtuple("City", ["id", "name", "ascii", "sub", "co", "tz"])):
         return dct
 
 
-class DBError(RuntimeError):
-    pass
-
-
 class DB:
     def __init__(self, filename=DB_FILENAME):
         self.filename = Path(filename)
@@ -220,10 +217,3 @@ class DB:
             "sub": sub.upper() if sub else sub,
         }
         return self._search(sql, value, dct)
-
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
-    db = DB()
-    for city in db.search("Paris"):
-        print(f"{city:N, s, c z [i]}")

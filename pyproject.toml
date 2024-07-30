@@ -1,2 +1,84 @@
+[build-system]
+requires = ["setuptools >= 61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "when"
+dynamic = ["version"]
+description = "Calculate and convert times across time zones and cities of significant population"
+license = { file = "LICENSE" }
+readme = { file = "README.rst", content-type = "text/x-rst" }
+keywords = ["time", "timezone", "timezones"]
+authors = [
+    { name = "David Krauth", email = "dakrauth@gmail.com" },
+]
+requires-python = ">=3.10"
+classifiers = [
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX",
+    "Operating System :: Unix",
+    "Operating System :: MacOS :: MacOS X",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Software Development",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Software Distribution",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "python-dateutil>=2.8.0",
+    "toml>=0.10.2",
+    "requests",
+    "fullmoon",
+]
+
+[project.scripts]
+when = "when.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/dakrauth/when"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+packages = ["when", "when.db"]
+
+[tool.setuptools.dynamic]
+version = { attr = "when.__version__"}
+
 [tool.black]
 line-length = 100
+
+[tool.pytest.ini_options]
+cache_dir = "./.dev/pytest_cache"
+
+[tool.coverage.run]
+branch = true
+source = [ "when", "tests" ]
+data_file = "./.dev/.coverage"
+
+[tool.coverage.html]
+directory = "./.dev/coverage"
+title = "When Coverage"
+
+[tool.coverage.report]
+# Regexes for lines to exclude from consideration
+ignore_errors = true
+exclude_lines = [
+    # Have to re-enable the standard pragma
+    "pragma: no cover",
+    # Don't complain about missing debug-only code:
+    "def __repr__",
+    "if self\\.debug",
+    # Don't complain if tests don't hit defensive assertion code:
+    "raise AssertionError",
+    "raise NotImplementedError",
+    # Don't complain if non-runnable code isn't run:
+    "if __name__ == .__main__.:"
+
+]

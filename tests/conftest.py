@@ -5,25 +5,32 @@ import pytest
 from when.db import client
 from when.db import make
 from when.core import When
+from when.config import Settings
 
-test_dir = Path(__file__).parent
+TEST_DIR = Path(__file__).parent
+DATA_DIR = TEST_DIR / "data"
 
-ADMIN_1 = """\
-US.HI\tHawaii\tHawaii\t5855797
-US.NY\tNew York\tNew York\t5128581
-US.ME\tMaine\tMaine\t4974617
-US.DC\tWashington, D.C.\tWashington, D.C\t4140963
-KR.11\tSeoul\tSeoul\t1835847
-NL.05\tLimburg\tLimburg\t2751283
-FR.11\tÎle-de-France\tÎle-de-France\t2988507"""
+
+@pytest.fixture
+def data_dir():
+    return DATA_DIR
 
 
 @pytest.fixture(scope="session", autouse=True)
-def db():
+def loader():
+    def load(filename):
+        return (DATA_DIR / filename).read_text()
+
+    return load
+
+
+@pytest.fixture(scope="session", autouse=True)
+def db(loader):
     db_path = Path("test_when.db")
     db_client = client.DB(db_path)
-    admin1 = make.load_admin1(ADMIN_1)
-    data = make.process_geonames_txt(test_dir / "citiesTest.txt", 0, admin_1=admin1)
+    admin1 = make.load_admin1(loader("admin1"))
+    with open(DATA_DIR / "cities") as fp:
+        data = make.process_geonames_txt(fp, 0, admin_1=admin1)
     db_client.create_db(data)
     yield db_client
 
@@ -33,4 +40,4 @@ def db():
 
 @pytest.fixture
 def when(db):
-    return When(db=db)
+    return When(Settings(), db=db)

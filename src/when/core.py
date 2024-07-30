@@ -9,22 +9,14 @@ from dateutil import rrule
 from dateutil.easter import easter
 
 from . import timezones, utils
-from .config import DEFAULT_FORMAT, FORMAT_SPECIFIERS, settings
+from .config import DEFAULT_FORMAT, FORMAT_SPECIFIERS
 from .db import client
-from .lunar import LunarPhase
+from .lunar import lunar_phase
 
 logger = logging.getLogger(__name__)
 
 
-class WhenError(Exception):
-    pass
-
-
-class UnknownSourceError(WhenError):
-    pass
-
-
-def holidays(co="US", ts=None):
+def holidays(settings, co="US", ts=None):
     year = datetime(int(ts) if ts else datetime.now().year, 1, 1)
     holiday_fmt = settings["holidays"]["format"]
     wkds = "({})".format("|".join(day.lower() for day in settings["calendar"]["days"]))
@@ -69,15 +61,18 @@ def holidays(co="US", ts=None):
         delta = dt - date.today()
         print(
             "{:.<{}}{} ({} days) [{}]".format(
-                title, mx, dt.strftime(holiday_fmt), delta.days, LunarPhase(dt).description
+                title,
+                mx,
+                dt.strftime(holiday_fmt),
+                delta.days, lunar_phase(settings["lunar"], dt)
             )
         )
 
 
 class Formatter:
-    def __init__(self, format=DEFAULT_FORMAT, delta=None):
-        format = format or "default"
-        self.format = settings["formats"]["named"].get(format, format)
+    def __init__(self, settings, format="default", delta=None):
+        self.settings = settings
+        self.format = self.settings["formats"]["named"].get(format, format)
 
         self.c99_specs = [fs[0][1] for fs in FORMAT_SPECIFIERS if "+" in fs[-1]]
         self.when_specs = [fs[0][2] for fs in FORMAT_SPECIFIERS if "!" == fs[-1]]
@@ -100,8 +95,8 @@ class Formatter:
         value = self.token_replacement(result, value, r"%!", self.cond_specs, "when_cond")
         value = self.token_replacement(result, value, r"%!", self.when_specs, "when")
 
-        value = result.dt.strftime(value)
         value = self.token_replacement(result, value, r"%", self.c99_specs, "c99")
+        value = result.dt.strftime(value)
         if self.delta:
             # TODO: td = result.dt - result.zone.now()
             delta = utils.format_timedelta(result.delta, short=self.delta == "short")
@@ -115,7 +110,7 @@ class Formatter:
         if not result.zone.name:
             return ""
 
-        fmt = settings["formats"]["conditional"]["Z"]
+        fmt = self.settings["formats"]["conditional"]["Z"]
         return fmt.format(result.zone.name)
 
     def when_cond_C(self, result):
@@ -123,7 +118,7 @@ class Formatter:
         if not result.zone.city:
             return ""
 
-        fmt = settings["formats"]["conditional"]["C"]
+        fmt = self.settings["formats"]["conditional"]["C"]
         return fmt.format(result.zone.city)
 
     def when_z(self, result):
@@ -136,7 +131,7 @@ class Formatter:
 
     def when_l(self, result):
         "Lunar phase emoji: 🌖"
-        return LunarPhase(result.dt).description
+        return lunar_phase(self.settings["lunar"], result.dt)
 
     def c99_C(self, result):
         "Year divided by 100 and truncated to integer (00-99): 20"
@@ -260,21 +255,18 @@ class Result:
 
 
 class When:
-    def __init__(self, tz_aliases=None, local_zone=None, db=None):
+    def __init__(self, settings, local_zone=None, db=None):
+        self.settings = settings
         self.db = db or client.DB()
-        self.aliases = tz_aliases or {}
         self.tz_dict = {z: z for z in utils.all_zones()}
         for key in list(self.tz_dict):
             self.tz_dict[key.lower()] = self.tz_dict[key]
 
-        self.tz_keys = list(self.tz_dict) + list(self.aliases)
+        self.tz_keys = list(self.tz_dict)
         self.local_zone = local_zone or TimeZoneDetail()
 
     def get_tz(self, name):
-        value = self.aliases.get(name, None)
-        if not value:
-            value = self.tz_dict[name]
-
+        value = self.tz_dict[name]
         return (utils.gettz(value), name)
 
     def find_zones(self, objs):

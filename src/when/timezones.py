@@ -352,17 +352,3 @@ class Zones:
 
 
 zones = Zones(ALIASES)
-
-
-def main():
-    args = sys.argv[1:]
-    if not args:
-        return "No zones specified"
-
-    for arg in args:
-        for tz, name in zones.get(arg):
-            print(f"{name:.<40}{tz}")
-
-
-if __name__ == "__main__":
-    sys.exit(main())

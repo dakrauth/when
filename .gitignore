@@ -104,6 +104,7 @@ venv.bak/
 .mypy_cache/
 
 # when
+.dev/
 src/when/db/cities*.txt
 src/when/db/timeZones.txt
 src/when/db/admin1CodesASCII.txt

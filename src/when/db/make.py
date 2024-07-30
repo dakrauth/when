@@ -8,7 +8,7 @@ from .. import utils
 
 logger = logging.getLogger(__name__)
 
-HERE_DIR = Path(__file__).parent
+DB_DIR = Path(__file__).parent
 GEONAMES_CITIES_URL_FMT = "https://download.geonames.org/export/dump/cities{}.zip"
 GEONAMES_TZ_URL = "https://download.geonames.org/export/dump/timeZones.txt"
 GEONAMES_ADMIN1_URL = "https://download.geonames.org/export/dump/admin1CodesASCII.txt"
@@ -21,9 +21,9 @@ CITY_FILE_SIZES = {
 
 
 @utils.timer
-def fetch_cities(size):
+def fetch_cities(size, dirname=DB_DIR):
     assert size in CITY_FILE_SIZES
-    txt_filename = Path(__file__).parent / f"cities{size}.txt"
+    txt_filename = dirname / f"cities{size}.txt"
     if txt_filename.exists():
         return txt_filename
 
@@ -36,7 +36,7 @@ def fetch_cities(size):
 
 
 @utils.timer
-def process_geonames_txt(filename, minimum_population=15_000, admin_1=None):
+def process_geonames_txt(fobj, minimum_population=15_000, admin_1=None):
     fcodes = defaultdict(int)
     skipped = defaultdict(int)
 
@@ -78,43 +78,42 @@ def process_geonames_txt(filename, minimum_population=15_000, admin_1=None):
     admin_1 = admin_1 or {}
     data = []
     i = 0
-    with open(filename) as fp:
-        for line in fp:
-            i += 1
-            (
-                gid,
-                name,
-                aname,
-                alt,
-                lat,
-                lng,
-                fclass,
-                fcode,
-                co,
-                cc2,
-                a1,
-                a2,
-                a3,
-                a4,
-                pop,
-                el,
-                dem,
-                tz,
-                mod,
-            ) = line.rstrip().split("\t")
+    for line in fobj:
+        i += 1
+        (
+            gid,
+            name,
+            aname,
+            alt,
+            lat,
+            lng,
+            fclass,
+            fcode,
+            co,
+            cc2,
+            a1,
+            a2,
+            a3,
+            a4,
+            pop,
+            el,
+            dem,
+            tz,
+            mod,
+        ) = line.rstrip().split("\t")
 
-            pop = int(pop) if pop else 0
-            if (
-                (fcode in skip)
-                or (fcode in skip_if and (pop < minimum_population))
-                or (fcode == "PPLA5" and name.startswith("Marseille") and name[-1].isdigit())
-            ):
-                skipped[fcode] += 1
-                continue
+        pop = int(pop) if pop else 0
+        if (
+            (fcode in skip)
+            or (fcode in skip_if and (pop < minimum_population))
+            or (fcode == "PPLA5" and name.startswith("Marseille") and name[-1].isdigit())
+        ):
+            skipped[fcode] += 1
+            continue
 
-            fcodes[fcode] += 1
-            sub = admin_1.get(f"{co}.{a1}", a1)
-            data.append([int(gid), name, aname, co, sub, tz, int(pop)])
+        fcodes[fcode] += 1
+        sub = admin_1.get(f"{co}.{a1}", a1)
+        data.append([int(gid), name, aname, co, sub, tz, int(pop)])
 
     for title, dct in [["KEPT", fcodes], ["SKIP", skipped]]:
         for k, v in sorted(dct.items(), key=lambda kv: kv[1], reverse=True):
@@ -133,8 +132,8 @@ def load_admin1(txt):
     return data
 
 
-def fetch_admin_1():
-    filename = HERE_DIR / "admin1CodesASCII.txt"
+def fetch_admin_1(dirname=DB_DIR):
+    filename = dirname / "admin1CodesASCII.txt"
     if filename.exists():
         txt = filename.read_text()
     else:

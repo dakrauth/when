@@ -95,18 +95,21 @@ For the sake of clarity, in the following examples I am in Seoul, Korea.
 Develop
 -------
 
-Requirements Python 3.10+
+Requirements Python 3.10+. Also, [just](https://github.com/casey/just) for convenience.
 
 .. code:: bash
 
     $ git clone git@github.com:dakrauth/when.git
     $ cd when
-    $ python -mvenv venv
-    $ . venv/bin/activate
-    $ pip install .
+    $ just
+    $ just venv
+    $ just test
+    $ . ./venv/bin/activate
     $ when --help
     $ when --db
-    $ pip install tox
-    $ tox
 
+Further Reading
+---------------
 
+[Time Zones Aren’t Offsets – Offsets Aren’t Time Zones
+](https://spin.atomicobject.com/time-zones-offsets/)

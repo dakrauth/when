@@ -12,6 +12,8 @@ from dateutil.tz import gettz as _gettz
 from dateutil.tz import tzfile
 from dateutil.zoneinfo import get_zonefile_instance
 
+from .exceptions import WhenError
+
 
 def gettz(name=None):
     tz = _gettz(name)
@@ -45,12 +47,11 @@ def format_timedelta(td, short=False):
         )
 
     if minutes:
-        if minutes:
-            values.append(
-                f"{minutes}m"
-                if short
-                else "{} minute{}".format(minutes, "s" if minutes > 1 else "")
-            )
+        values.append(
+            f"{minutes}m"
+            if short
+            else "{} minute{}".format(minutes, "s" if minutes > 1 else "")
+        )
 
     if hours:
         values.append(f"{hours}h" if short else "{} hour{}".format(hours, "s" if hours > 1 else ""))
@@ -65,7 +66,7 @@ def format_timedelta(td, short=False):
     return sign + joiner.join(reversed(values))
 
 
-def parse_timedelta_offet(offset):
+def parse_timedelta_offset(offset):
     offset = offset.strip()
     sign = +1
     if offset.startswith(("+", "-", "~")):
@@ -73,12 +74,12 @@ def parse_timedelta_offet(offset):
         offset = offset[1:]
 
     if len(offset) < 2:
-        raise ValueError("Invalid offset")
+        raise WhenError("Invalid offset")
 
     offset_args = {"days": 0, "hours": 0, "weeks": 0, "minutes": 0, "seconds": 0}
     matches = re.match(r"^(\d+[wdhms])+$", offset, re.IGNORECASE)
     if not matches:
-        raise ValueError(f"Unrecognized offset value: {offset}")
+        raise WhenError(f"Unrecognized offset value: {offset}")
 
     for _, i, kind in re.findall(r"((\d+)([wdhms]))", offset, re.IGNORECASE):
         kind = kind.lower()
@@ -114,7 +115,7 @@ def datetime_from_timestamp(arg):
         dt = datetime.fromtimestamp(value)
     except ValueError as err:
         if "out of range" not in str(err):
-            raise
+            raise WhenError(f"Invalid timestamp format: {value}")
         dt = datetime.fromtimestamp(value / 1000)
 
     return dt
@@ -132,7 +133,7 @@ def parse_source_input(arg):
 def timer(func):
     colorize = "\033[0;37;43m{}\033[0;0m".format
 
-    def inner(*args, **kwargs):
+    def inner(*args, **kwargs):  # pragma: no cover
         start = time.time()
         result = func(*args, **kwargs)
         duration = time.time() - start
@@ -148,7 +149,7 @@ def fetch(url):
     if r.ok:
         return r.content
 
-    raise RuntimeError(f"{r.status_code}: {url}")
+    raise WhenError(f"{r.status_code}: {url}")
 
 
 def get_timezone_db_name(tz):
