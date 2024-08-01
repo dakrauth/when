@@ -18,8 +18,9 @@ def data_dir():
 
 @pytest.fixture(scope="session", autouse=True)
 def loader():
-    def load(filename):
-        return (DATA_DIR / filename).read_text()
+    def load(filename, binary=False):
+        path = DATA_DIR / filename
+        return path.read_bytes() if binary else path.read_text()
 
     return load
 

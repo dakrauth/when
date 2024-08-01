@@ -14,6 +14,7 @@ from when import utils, lunar, core, exceptions
 from when import db as dbm
 from when.config import Settings
 from when.core import When
+from when.db import make
 
 import pytest
 import responses
@@ -21,6 +22,7 @@ from freezegun import freeze_time
 
 # "NYC", 5128581
 # "DC", 4140963
+HERE_DIR = Path(__file__).parent
 
 
 class TestZones:
@@ -68,7 +70,8 @@ class TestUtils:
 
     @pytest.mark.parametrize("inp", ["1721774096", 1721774096, "1721774096000", 1721774096000])
     def test_datetime_from_timestamp(self, inp):
-        assert utils.datetime_from_timestamp(inp) == datetime(2024, 7, 23, 12, 34, 56)
+        with freeze_time("2024-08-01", tz_offset=0):
+            assert utils.datetime_from_timestamp(inp) == datetime(2024, 7, 23, 22, 34, 56)
 
     def test_datetime_from_timestamp_error(self):
         with pytest.raises(exceptions.WhenError, match="Invalid timestamp format: nan"):
@@ -86,7 +89,7 @@ class TestUtils:
             url = "https://foo.com/baz/"
             rsp.add(responses.GET, url, status=404)
             with pytest.raises(exceptions.WhenError, match=f"404: {url}"):
-                    utils.fetch(url)
+                utils.fetch(url)
 
 
 class TestLunar:
@@ -109,21 +112,24 @@ class TestLunar:
             val = lunar.full_moon("next")
             assert val == [date(2026, 6, 29)]
 
-            #breakpoint()
+            # breakpoint()
             val = lunar.full_moon("prev")
             assert val == [date(2026, 5, 31)]
 
 
 class TestDB:
     def _args(self, **kwargs):
-        kwargs = dict(
-            db=False,
-            db_search=None,
-            db_xsearch=False,
-            db_alias=False,
-            db_aliases=False,
-            db_force=False,
-        ) | kwargs
+        kwargs = (
+            dict(
+                db=False,
+                db_search=None,
+                db_alias=False,
+                db_aliases=False,
+                db_force=False,
+                exact=False,
+            )
+            | kwargs
+        )
         return SimpleNamespace(**kwargs)
 
     def test_aliases(self, capsys, db):
@@ -133,8 +139,8 @@ class TestDB:
         captured = capsys.readouterr().out
         assert "nyc: New York City" in captured
 
-    def test_db_xsearch(self, capsys, db):
-        dbm.db_main(db, self._args(db_xsearch=True, timestr=["Paris,FR"]))
+    def test_db_exact_search(self, capsys, db):
+        dbm.db_main(db, self._args(exact=True, db_search=True, timestr=["Paris,FR"]))
         captured = capsys.readouterr().out.strip()
         assert len(captured.split("\n")) == 1
         assert captured == "2988507 Paris, Île-de-France, FR, Europe/Paris"
@@ -143,15 +149,79 @@ class TestDB:
         db = dbm.client.DB("doesnotexist")
         assert -1 == dbm.db_main(db, self._args(db_search=True, timestr=["foo"]))
 
-    def test_db_create(self):
-        assert False
+    def test_db_create(self, loader):
+        db = dbm.client.DB(HERE_DIR / "test_create.db")
+        files = [db.filename, HERE_DIR / "cities500.txt", HERE_DIR / "admin1CodesASCII.txt"]
+        [f.unlink(True) for f in files]
+
+        try:
+            args = self._args(db=True, db_size=500, db_pop=10_000, db_force=True)
+            with responses.RequestsMock() as mock:
+                rsp_city = mock.add(
+                    responses.GET,
+                    make.GEONAMES_CITIES_URL_FMT.format(500),
+                    body=loader("cities500.zip", binary=True),
+                    status=200,
+                )
+                rsp_admin1 = mock.add(
+                    responses.GET,
+                    make.GEONAMES_ADMIN1_URL,
+                    body=loader("admin1", binary=True),
+                    status=200,
+                )
+
+                dbm.db_main(db, args)
+                assert 2 == len(db.search("Paris"))
+        finally:
+            [f.unlink(True) for f in files]
+
+    def test_fetch_cities(self, loader):
+        size = 500
+        expect = HERE_DIR / f"cities{size}.txt"
+        expect.unlink(True)
+        url = make.GEONAMES_CITIES_URL_FMT.format(size)
+        with responses.RequestsMock() as mock:
+            body = loader("cities500.zip", binary=True)
+            rsp = mock.add(responses.GET, url, body=body, status=200)
+            fn = make.fetch_cities(size, HERE_DIR)
+            assert fn == expect
+            assert rsp.call_count == 1
+
+            fn = make.fetch_cities(size, HERE_DIR)
+            assert fn == expect
+            assert rsp.call_count == 1
+
+            with expect.open() as fp:
+                data = make.process_geonames_txt(fp, 10_000)
+
+            assert len(data) == 7
+
+        expect.unlink(True)
+
+    def test_fetch_admin_1(self, loader):
+        expect = HERE_DIR / "admin1CodesASCII.txt"
+        expect.unlink(True)
+        url = make.GEONAMES_ADMIN1_URL
+        with responses.RequestsMock() as mock:
+            rsp = mock.add(responses.GET, url, body=loader("admin1", binary=True), status=200)
+
+            data = make.fetch_admin_1(HERE_DIR)
+            assert rsp.call_count == 1
+            assert expect.exists()
+            assert len(data) == 7
+
+            data = make.fetch_admin_1(HERE_DIR)
+            assert rsp.call_count == 1
+            assert len(data) == 7
+
+        expect.unlink(True)
 
     def test_parse_search(self, db):
-        assert dbm.parse_search("a") == ["a", None, None]
-        assert dbm.parse_search("a, b") == ["a", "b", None]
-        assert dbm.parse_search("a, b,c") == ["a", "b", "c"]
-        with pytest.raises(ValueError, match="Invalid city search expression: a,b,c,d"):
-            dbm.parse_search("a,b,c,d")
+        assert db.parse_search("a") == ["a", None, None]
+        assert db.parse_search("a, b") == ["a", "b", None]
+        assert db.parse_search("a, b,c") == ["a", "b", "c"]
+        with pytest.raises(exceptions.DBError, match="Invalid city search expression: a,b,c,d"):
+            db.parse_search("a,b,c,d")
 
     def test_db_search_singleton(self, db):
         result = db.search("maastricht")
@@ -164,7 +234,7 @@ class TestDB:
         assert set(r.tz for r in result) == {"Europe/Paris", "America/New_York"}
 
     def test_db_search_co(self, db):
-        result = db.search("paris", "fr")
+        result = db.search("paris,fr")
         assert len(result) == 1
         assert result[0].tz == "Europe/Paris"
 
@@ -177,7 +247,9 @@ class TestDB:
 
 class TestIANA:
     def test_iana_src_iana_tgt(self, when):
-        result = when.convert("Jan 10, 2023 4:30am", sources="America/New_York", targets="Asia/Seoul")
+        result = when.convert(
+            "Jan 10, 2023 4:30am", sources="America/New_York", targets="Asia/Seoul"
+        )
         expect = datetime(2023, 1, 10, 18, 30, tzinfo=gettz("Asia/Seoul"))
         assert len(result) == 1
         assert result[0].dt == expect
@@ -244,20 +316,41 @@ class TestMain:
         when_main(argv, when)
         assert "when_rc_toml" in capsys.readouterr().err
 
-    @pytest.mark.parametrize("args,exp", [
-        (["-h"], "Use -v option for details"),
-        (["--config"], "[calendar]"),
-        (["--holidays", "US"], "Halloween"),
-        (["--prefix"], str(Path(exceptions.__file__).parent)),
-        (["--tz-alias", "EST"], "Eastern Standard Time"),
-        (["--fullmoon", "2026.05"], "2026-05-01\n2026-05-31")
-    ])
+    @pytest.mark.parametrize(
+        "args,exp",
+        [
+            (["-h"], "Use -v option for details"),
+            (["--config"], "[calendar]"),
+            (["--holidays", "US"], "Halloween"),
+            (["--prefix"], str(Path(exceptions.__file__).parent)),
+            (["--tz-alias", "EST"], "Eastern Standard Time"),
+            (["--fullmoon", "2026.05"], "2026-05-01\n2026-05-31"),
+        ],
+    )
     def test_simple_actions(self, capsys, args, exp):
         when_main(args)
         out = capsys.readouterr().out
         assert exp in out
 
-class TestHolidays:
+    def test_offset(self, capsys, when):
+        args = ["--offset", "-1d", "--target", "xxx"]
+        rc = when_main(args, when)
+        err = capsys.readouterr().err
+        assert "Could not find matching resource: xxx" in err
+        assert rc == 1
+        assert args[1] == "~1d"
+
+
+class TestMisc:
+    def test_settings(self, data_dir):
+        name = "when_rc_toml"
+        s = Settings(dirs=[data_dir], name=name)
+        assert s.read_from == [data_dir / name]
+
+        text = s.write_text()
+        assert "[foo]\n" in text
+        assert 'bar = "baz"' in text
+
     def test_holidays(self, capsys, loader):
         expected_holidays = loader("holidays").splitlines()
         core.holidays(Settings(), co="US", ts="2023")
@@ -268,45 +361,36 @@ class TestHolidays:
             assert m is not None
             assert m.end() == len(line)
 
-
-class TestSettings:
-    def test_settings(self, data_dir):
-        name = "when_rc_toml"
-        s = Settings(dirs=[data_dir], name=name)
-        assert s.read_from == [data_dir / name]
-
-        text = s.write_text()
-        assert "[foo]\n" in text
-        assert 'bar = "baz"' in text
-
-
-class TestMisc:
     def test_base_import(self):
         from when import when as xxx
+
         assert isinstance(xxx, When)
 
-    @pytest.mark.parametrize("spec,exp", [
-        ("%!z", "Pacific/Honolulu"),
-        ("%!Z", ", Pacific/Honolulu"),
-        ("%!c", "Lāhaina (Lahaina), Hawaii, US, Pacific/Honolulu"),
-        ("%C", "20"),
-        ("%D", "07/29/24"),
-        ("%e", "29"),
-        ("%F", "2024-07-29"),
-        ("%g", "24"),
-        ("%G", "2024"),
-        ("%h", "Jul"),
-        ("%n", "\n"),
-        ("%r", "10:00:00 AM"),
-        ("%R", "10:00"),
-        ("%t", "\t"),
-        ("%T", "10:00:00"),
-        ("%u", "1"),
-        ("%V", "31"),
-    ])
+    @pytest.mark.parametrize(
+        "spec,exp",
+        [
+            ("%!z", "Pacific/Honolulu"),
+            ("%!Z", ", Pacific/Honolulu"),
+            ("%!c", "Lāhaina (Lahaina), Hawaii, US, Pacific/Honolulu"),
+            ("%C", "20"),
+            ("%D", "07/29/24"),
+            ("%e", "29"),
+            ("%F", "2024-07-29"),
+            ("%g", "24"),
+            ("%G", "2024"),
+            ("%h", "Jul"),
+            ("%n", "\n"),
+            ("%r", "12:00:00 AM"),
+            ("%R", "00:00"),
+            ("%t", "\t"),
+            ("%T", "00:00:00"),
+            ("%u", "1"),
+            ("%V", "31"),
+        ],
+    )
     def test_formatting(self, when, spec, exp):
-        res = when.convert("July 29, 2024 10am", targets=["Lahaina"])[0]
-        fmt = core.Formatter(when.settings, spec)
-        val = fmt(res)
-        assert val == exp, f"{spec} bad, {val} != {exp}"
-
+        with freeze_time("2024-08-01", tz_offset=0):
+            res = when.convert("July 29, 2024 10am", targets=["Lahaina"])[0]
+            fmt = core.Formatter(when.settings, spec)
+            val = fmt(res)
+            assert val == exp, f"{spec} bad, {val} != {exp}"

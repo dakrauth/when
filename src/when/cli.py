@@ -12,6 +12,27 @@ logger = logging.getLogger(__name__)
 
 
 def get_parser(settings):
+    class DBSizeAction(argparse.Action):
+        city_file_sizes = [
+            ("xl", "xlarge", 500, "10M"),
+            ("lg", "large", 1_000, "7.8M"),
+            ("md", "medium", 5_000, "3.9M"),
+            ("sm", "small", 15_000, "2.3M"),
+        ]
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.lookup = {}
+            for a, b, c, d in self.city_file_sizes:
+                self.lookup[a] = c
+                self.lookup[b] = c
+
+        def __call__(self, parser, namespace, values, option_string=None):
+            if values not in self.lookup:
+                raise ValueError(f"{values} not allowed for DB size")
+
+            setattr(namespace, self.dest, self.lookup[values])
+
     parser = argparse.ArgumentParser(
         description="Convert times to and from time zones or cities",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -145,14 +166,14 @@ def get_parser(settings):
         "--db-search",
         action="store_true",
         default=False,
-        help="Search database for the given city with similar value",
+        help="Search database for the given city",
     )
 
     parser.add_argument(
-        "--db-xsearch",
+        "--exact",
         action="store_true",
         default=False,
-        help="Search database for the given city with exact value",
+        help="DB searches must be exact",
     )
 
     parser.add_argument("--db-alias", type=int, help="Create a new alias from the city id")
@@ -166,10 +187,10 @@ def get_parser(settings):
 
     parser.add_argument(
         "--db-size",
-        default=15_000,
-        type=int,
+        default="md",
+        action=DBSizeAction,
         help="Geonames file size. Can be one of {}. ".format(
-            ", ".join(str(i) for i in db.CITY_FILE_SIZES)
+            ", ".join(f"'{a}' ('{b}')" for a, b, *c in DBSizeAction.city_file_sizes)
         ),
     )
 
@@ -181,10 +202,7 @@ def get_parser(settings):
     )
 
     parser.add_argument(
-        "--tz-alias",
-        action="store_true",
-        default=False,
-        help="Search for a time zone alias"
+        "--tz-alias", action="store_true", default=False, help="Search for a time zone alias"
     )
 
     parser.add_argument(
@@ -192,7 +210,7 @@ def get_parser(settings):
         action="store_true",
         default=False,
         help="Show full moon(s) for given year or month. Can be in the format of: "
-        "'next' | 'prev' | YYYY[-MM]"
+        "'next' | 'prev' | YYYY[-MM]",
     )
 
     return parser
@@ -211,12 +229,12 @@ def log_config(verbosity, settings):
     logging.basicConfig(level=log_level, format=log_format, force=True)
     logger.debug(
         "Configuration files read: %s",
-        ", ".join(str(s) for s in settings.read_from) if settings.read_from else "None"
+        ", ".join(str(s) for s in settings.read_from) if settings.read_from else "None",
     )
 
 
 def main(sys_args, when=None, settings=None):
-    if "--pdb" in sys_args:
+    if "--pdb" in sys_args:  # pragma: no cover
         sys_args.remove("--pdb")
         breakpoint()
 
@@ -283,6 +301,7 @@ def main(sys_args, when=None, settings=None):
                 targets=targets,
                 indent=2,
                 offset=args.offset,
+                exact=args.exact,
             )
         )
         return 0
@@ -294,6 +313,7 @@ def main(sys_args, when=None, settings=None):
             targets=targets,
             sources=args.source,
             offset=args.offset,
+            exact=args.exact,
         )
     except exceptions.UnknownSourceError as e:
         print(e, file=sys.stderr)

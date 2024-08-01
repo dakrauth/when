@@ -191,16 +191,31 @@ class DB:
 
         return City.from_results(results)
 
-    def exact_search(self, value, co=None, sub=None):
-        sql = XSEARCH_QUERY
-        if co:
-            sql = f"{sql} AND c.co = :co AND c.sub = :sub" if sub else f"{sql} AND c.co = :co"
+    def parse_search(self, value):
+        bits = [a.strip() for a in value.split(",")]
+        nbits = len(bits)
+        if nbits > 3:
+            raise DBError(f"Invalid city search expression: {value}")
 
-        return self._search(
-            sql, value, {"value": value, "co": co.upper() if co else co, "sub": sub}
-        )
+        match nbits:
+            case 1:
+                return [value, None, None]
+            case 2:
+                return [bits[0], bits[1], None]
+            case 3:
+                return bits
 
-    def search(self, value, co=None, sub=None):
+    def search(self, value, exact=False):
+        value, co, sub = self.parse_search(value)
+        if exact:
+            sql = XSEARCH_QUERY
+            if co:
+                sql = f"{sql} AND c.co = :co AND c.sub = :sub" if sub else f"{sql} AND c.co = :co"
+
+            return self._search(
+                sql, value, {"value": value, "co": co.upper() if co else co, "sub": sub}
+            )
+
         like_exprs = ["c.name LIKE :like", "c.ascii LIKE :like"]
         if co:
             like_exprs = (
@@ -209,11 +224,13 @@ class DB:
                 else [f"({bit} AND c.co = :co)" for bit in like_exprs]
             )
 
-        sql = SEARCH_QUERY.format(" OR ".join(like_exprs))
-        dct = {
-            "like": f"%{value}%",
-            "value": value,
-            "co": co.upper() if co else co,
-            "sub": sub.upper() if sub else sub,
-        }
-        return self._search(sql, value, dct)
+        return self._search(
+            SEARCH_QUERY.format(" OR ".join(like_exprs)),
+            value,
+            {
+                "like": f"%{value}%",
+                "value": value,
+                "co": co.upper() if co else co,
+                "sub": sub.upper() if sub else sub,
+            },
+        )

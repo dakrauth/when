@@ -48,9 +48,7 @@ def format_timedelta(td, short=False):
 
     if minutes:
         values.append(
-            f"{minutes}m"
-            if short
-            else "{} minute{}".format(minutes, "s" if minutes > 1 else "")
+            f"{minutes}m" if short else "{} minute{}".format(minutes, "s" if minutes > 1 else "")
         )
 
     if hours:

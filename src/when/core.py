@@ -8,7 +8,7 @@ from itertools import chain
 from dateutil import rrule
 from dateutil.easter import easter
 
-from . import timezones, utils
+from . import exceptions, timezones, utils
 from .config import DEFAULT_FORMAT, FORMAT_SPECIFIERS
 from .db import client
 from .lunar import lunar_phase
@@ -61,10 +61,7 @@ def holidays(settings, co="US", ts=None):
         delta = dt - date.today()
         print(
             "{:.<{}}{} ({} days) [{}]".format(
-                title,
-                mx,
-                dt.strftime(holiday_fmt),
-                delta.days, lunar_phase(settings["lunar"], dt)
+                title, mx, dt.strftime(holiday_fmt), delta.days, lunar_phase(settings["lunar"], dt)
             )
         )
 
@@ -264,12 +261,16 @@ class When:
 
         self.tz_keys = list(self.tz_dict)
         self.local_zone = local_zone or TimeZoneDetail()
+        self.errors = {}
 
     def get_tz(self, name):
         value = self.tz_dict[name]
         return (utils.gettz(value), name)
 
-    def find_zones(self, objs):
+    def error(self, key, msg):
+        self.errors.setdefault(key, []).append(msg)
+
+    def find_zones(self, objs, exact=False):
         if isinstance(objs, str):
             objs = [objs]
 
@@ -285,18 +286,25 @@ class When:
             for tz, name in timezones.zones.get(o):
                 tzs.setdefault(name, []).append(TimeZoneDetail(tz, name))
 
-            results = self.db.search(o)
+            try:
+                results = self.db.search(o, exact)
+            except exceptions.DBError as err:
+                self.error("Missing DB", str(err))
+                results = []
+
             for c in results:
                 tz, name = self.get_tz(c.tz)
                 tzs.setdefault(None, []).append(TimeZoneDetail(tz, name, c))
 
         zones = list(chain.from_iterable(tzs.values()))
         if not zones:
-            raise UnknownSourceError(f"Could not find matching resource: {', '.join(objs)}")
+            raise exceptions.UnknownSourceError(
+                f"Could not find matching resource: {', '.join(objs)}"
+            )
 
         return zones
 
-    def convert(self, timestr, sources=None, targets=None, offset=None):
+    def convert(self, timestr, sources=None, targets=None, offset=None, exact=False):
         """
         +================================================================+
         |                  Without a given timestr                       |
@@ -330,8 +338,8 @@ class When:
         if not any([timestr, sources, targets]):
             return [Result(local.now(), local, offset=offset)]
 
-        target_zones = self.find_zones(targets) if targets else [local]
-        source_zones = self.find_zones(sources) if sources else [local]
+        target_zones = self.find_zones(targets, exact) if targets else [local]
+        source_zones = self.find_zones(sources, exact) if sources else [local]
 
         if timestr:
             dt = utils.parse_timestamp(timestr).replace(microsecond=0)
@@ -348,11 +356,13 @@ class When:
         items = source_zones if sources else target_zones
         return [Result(i.now(), i, offset=offset) for i in items]
 
-    def results(self, timestamp="", sources=None, targets=None, offset=None):
-        return self.convert(utils.parse_source_input(timestamp), sources, targets, offset)
+    def results(self, timestamp="", sources=None, targets=None, offset=None, exact=False):
+        return self.convert(utils.parse_source_input(timestamp), sources, targets, offset, exact)
 
-    def as_json(self, timestamp="", sources=None, targets=None, offset=None, **json_kwargs):
-        converts = self.results(timestamp, sources, targets, offset)
+    def as_json(
+        self, timestamp="", sources=None, targets=None, offset=None, exact=False, **json_kwargs
+    ):
+        converts = self.results(timestamp, sources, targets, offset, exact)
         return json.dumps([convert.to_dict() for convert in converts], **json_kwargs)
 
     def grouped(self, results, offset=None):
