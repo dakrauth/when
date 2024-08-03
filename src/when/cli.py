@@ -1,38 +1,41 @@
 #!/usr/bin/env python
 import argparse
-import logging
 import sys
+import logging
 from pathlib import Path
 
 from . import __version__, core, db, utils, lunar, exceptions
 from . import timezones
 from .config import Settings, __doc__ as FORMAT_HELP
 
-logger = logging.getLogger(__name__)
+
+class DBSizeAction(argparse.Action):
+    city_file_sizes = [
+        ("xl", "xlarge", 500, "10M"),
+        ("lg", "large", 1_000, "7.8M"),
+        ("md", "medium", 5_000, "3.9M"),
+        ("sm", "small", 15_000, "2.3M"),
+    ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.lookup = {}
+        for a, b, c, d in self.city_file_sizes:
+            self.lookup[a] = c
+            self.lookup[b] = c
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        if values not in self.lookup:
+            raise ValueError(f"{values} not allowed for DB size")
+
+        setattr(namespace, self.dest, self.lookup[values])
+
+    @classmethod
+    def format_usage(cls):
+        return ", ".join(f"'{a}' ('{b}')" for a, b, *c in cls.city_file_sizes)
 
 
 def get_parser(settings):
-    class DBSizeAction(argparse.Action):
-        city_file_sizes = [
-            ("xl", "xlarge", 500, "10M"),
-            ("lg", "large", 1_000, "7.8M"),
-            ("md", "medium", 5_000, "3.9M"),
-            ("sm", "small", 15_000, "2.3M"),
-        ]
-
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.lookup = {}
-            for a, b, c, d in self.city_file_sizes:
-                self.lookup[a] = c
-                self.lookup[b] = c
-
-        def __call__(self, parser, namespace, values, option_string=None):
-            if values not in self.lookup:
-                raise ValueError(f"{values} not allowed for DB size")
-
-            setattr(namespace, self.dest, self.lookup[values])
-
     parser = argparse.ArgumentParser(
         description="Convert times to and from time zones or cities",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -43,28 +46,21 @@ def get_parser(settings):
         "timestr",
         default="",
         nargs="*",
-        help="Timestamp to parse, defaults to local time",
+        help="Timestamp to parse, or other contextual input",
     )
 
-    parser.add_argument(
-        "--delta",
-        choices=["long", "short"],
-        help="Show the delta to the given timestamp",
-    )
+    # TODO
+    # parser.add_argument(
+    #     "--delta",
+    #     choices=["long", "short"],
+    #     help="Show the delta to the given timestamp",
+    # )
 
     parser.add_argument(
         "--offset",
         type=utils.parse_timedelta_offset,
         help="Show the difference from a given offset",
         metavar=r"[+-]?(\d+wdhm)+",
-    )
-
-    parser.add_argument(
-        "-h",
-        "--help",
-        action="store_true",
-        default=False,
-        help="Show helpful usage information",
     )
 
     parser.add_argument(
@@ -144,28 +140,30 @@ def get_parser(settings):
         "--config",
         action="store_true",
         default=False,
-        help="Toggle config mode. With no other option, dump current configuration settings",
+        help="Show current configuration settings",
     )
 
-    # DB options
+    size_opts = DBSizeAction.format_usage()
     parser.add_argument(
         "--db",
-        action="store_true",
-        default=False,
-        help="Create cities database, used with --db-size and --db-pop",
+        action=DBSizeAction,
+        dest="db_size",
+        help=f"Create cities database from Geonames file. Must one of {size_opts}",
     )
 
     parser.add_argument(
-        "--db-force",
+        "--force",
         action="store_true",
         default=False,
+        dest="db_force",
         help="Force an existing database to be overwritten",
     )
 
     parser.add_argument(
-        "--db-search",
+        "--search",
         action="store_true",
         default=False,
+        dest="db_search",
         help="Search database for the given city",
     )
 
@@ -173,31 +171,30 @@ def get_parser(settings):
         "--exact",
         action="store_true",
         default=False,
+        dest="db_exact",
         help="DB searches must be exact",
     )
 
-    parser.add_argument("--db-alias", type=int, help="Create a new alias from the city id")
+    parser.add_argument(
+        "--alias",
+        type=int,
+        dest="db_alias",
+        help="Create a new alias from the city id"
+    )
 
     parser.add_argument(
-        "--db-aliases",
+        "--aliases",
         action="store_true",
         default=False,
+        dest="db_aliases",
         help="Show all DB aliases",
     )
 
     parser.add_argument(
-        "--db-size",
-        default="md",
-        action=DBSizeAction,
-        help="Geonames file size. Can be one of {}. ".format(
-            ", ".join(f"'{a}' ('{b}')" for a, b, *c in DBSizeAction.city_file_sizes)
-        ),
-    )
-
-    parser.add_argument(
-        "--db-pop",
+        "--population",
         default=10_000,
         type=int,
+        dest="db_pop",
         help="City population minimum.",
     )
 
@@ -211,6 +208,14 @@ def get_parser(settings):
         default=False,
         help="Show full moon(s) for given year or month. Can be in the format of: "
         "'next' | 'prev' | YYYY[-MM]",
+    )
+
+    parser.add_argument(
+        "-h",
+        "--help",
+        action="store_true",
+        default=False,
+        help="Show helpful usage information",
     )
 
     return parser
@@ -227,10 +232,13 @@ def log_config(verbosity, settings):
             logging.getLogger("asyncio").setLevel(logging.WARNING)
 
     logging.basicConfig(level=log_level, format=log_format, force=True)
+    logger = utils.logger()
     logger.debug(
         "Configuration files read: %s",
         ", ".join(str(s) for s in settings.read_from) if settings.read_from else "None",
     )
+
+    return logger
 
 
 def main(sys_args, when=None, settings=None):
@@ -258,7 +266,7 @@ def main(sys_args, when=None, settings=None):
     parser = get_parser(settings)
     args = parser.parse_args(sys_args)
 
-    log_config(args.verbosity, settings)
+    logger = log_config(args.verbosity, settings)
     logger.debug(args)
     if args.help:
         parser.print_help()
@@ -288,11 +296,12 @@ def main(sys_args, when=None, settings=None):
 
         return 0
 
-    targets = utils.all_zones() if args.all else args.target
     when = when or core.When(settings)
-    if any(a for a in vars(args) if a.startswith("db") and getattr(args, a) is True):
+    db_triggers = ("db_size", "db_search", "db_alias")
+    if any(a for a in vars(args) if a.startswith(db_triggers) and getattr(args, a)):
         return db.db_main(when.db, args)
 
+    targets = utils.all_zones() if args.all else args.target
     if args.json:
         print(
             when.as_json(
@@ -301,19 +310,19 @@ def main(sys_args, when=None, settings=None):
                 targets=targets,
                 indent=2,
                 offset=args.offset,
-                exact=args.exact,
+                exact=args.db_exact,
             )
         )
         return 0
 
-    formatter = core.Formatter(settings, args.format)
+    formatter = when.formatter(args.format)
     try:
         results = when.results(
             args.timestr,
             targets=targets,
             sources=args.source,
             offset=args.offset,
-            exact=args.exact,
+            exact=args.db_exact,
         )
     except exceptions.UnknownSourceError as e:
         print(e, file=sys.stderr)

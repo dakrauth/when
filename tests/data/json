@@ -1,6 +1,7 @@
 [
   {
     "iso": "2024-01-20T17:00:00+09:00",
+    "lunar": {"emoji": "🌓", "phase": "First Quarter", "age": 9.4415},
     "offset": null,
     "zone": {
       "name": "Asia/Seoul",
@@ -11,10 +12,11 @@
         "tz": "Asia/Seoul",
         "subnational": "Seoul"
       },
-      "utcoffset": [9, 0, 0]
+      "utcoffset": [9, 0]
     },
     "source": {
       "iso": "2024-01-19T22:00:00-10:00",
+      "lunar": {"emoji": "🌓", "phase": "First Quarter", "age": 8.4415},
       "offset": null,
       "zone": {
         "name": "Pacific/Honolulu",
@@ -25,7 +27,7 @@
           "tz": "Pacific/Honolulu",
           "subnational": "Hawaii"
         },
-        "utcoffset": [-10, 0, 0]
+        "utcoffset": [-10, 0]
       },
       "source": null
     }

@@ -18,10 +18,10 @@ def create(db, size, pop, remove_existing=False, dirname=None):
 
 def db_main(db, args):
     try:
-        if args.db:
+        if args.db_size:
             create(db, args.db_size, args.db_pop, args.db_force)
         elif args.db_search:
-            for row in db.search(" ".join(args.timestr), args.exact):
+            for row in db.search(" ".join(args.timestr), args.db_exact):
                 print(f"{row.id:7} {row}")
         elif args.db_alias:
             db.add_alias(" ".join(args.timestr), args.db_alias)

@@ -3,6 +3,8 @@ import os
 import re
 import sys
 import time
+import logging
+from functools import cache
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -13,6 +15,11 @@ from dateutil.tz import tzfile
 from dateutil.zoneinfo import get_zonefile_instance
 
 from .exceptions import WhenError
+
+
+@cache
+def logger():
+    return logging.getLogger("when")
 
 
 def gettz(name=None):

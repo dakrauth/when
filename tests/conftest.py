@@ -41,4 +41,4 @@ def db(loader):
 
 @pytest.fixture
 def when(db):
-    return When(Settings(), db=db)
+    return When(Settings(name="NopeNopeNope"), db=db)

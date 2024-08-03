@@ -9,7 +9,7 @@ from .exceptions import WhenError
 JULIAN_OFFSET = 1721424.5
 KNOWN_NEW_MOON = 2451549.5
 SYNMONTH = 29.53050000
-YEAR_MONTH_RE = re.compile(r"^\d\d\d\d\.\d\d?$")
+YEAR_MONTH_RE = re.compile(r"^\d\d\d\d-\d\d?$")
 
 
 def lunar_phase(settings, dt=None, dt_fmt=None):
@@ -23,7 +23,7 @@ def lunar_phase(settings, dt=None, dt_fmt=None):
 
     emoji = settings["emojis"][index]
     name = settings["phases"][index]
-    return f"{emoji} {name}"
+    return emoji, name, age
 
 
 def full_moon_iterator(dt=None):
@@ -60,7 +60,7 @@ def full_moon(arg=None):
         case arg if isinstance(arg, str) and arg.isdigit():
             return full_moons_for_year(int(arg))
         case arg if isinstance(arg, str) and YEAR_MONTH_RE.match(arg):
-            y, m = [int(i) for i in arg.split(".")]
+            y, m = [int(i) for i in arg.split("-")]
             it = full_moon_iterator(datetime(y, m, 1))
             dates = []
             while True:

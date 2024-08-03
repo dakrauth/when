@@ -13,7 +13,7 @@ from .config import DEFAULT_FORMAT, FORMAT_SPECIFIERS
 from .db import client
 from .lunar import lunar_phase
 
-logger = logging.getLogger(__name__)
+logger = utils.logger()
 
 
 def holidays(settings, co="US", ts=None):
@@ -59,9 +59,10 @@ def holidays(settings, co="US", ts=None):
     mx = 2 + max(len(t[0]) for t in results)
     for title, dt in sorted(results, key=lambda o: o[1]):
         delta = dt - date.today()
+        emoji, phase, age = lunar_phase(settings["lunar"], dt)
         print(
-            "{:.<{}}{} ({} days) [{}]".format(
-                title, mx, dt.strftime(holiday_fmt), delta.days, lunar_phase(settings["lunar"], dt)
+            "{:.<{}}{} ({:4} days) [{} {}]".format(
+                title, mx, dt.strftime(holiday_fmt), delta.days, emoji, phase
             )
         )
 
@@ -91,7 +92,6 @@ class Formatter:
         value = self.format
         value = self.token_replacement(result, value, r"%!", self.cond_specs, "when_cond")
         value = self.token_replacement(result, value, r"%!", self.when_specs, "when")
-
         value = self.token_replacement(result, value, r"%", self.c99_specs, "c99")
         value = result.dt.strftime(value)
         if self.delta:
@@ -128,7 +128,8 @@ class Formatter:
 
     def when_l(self, result):
         "Lunar phase emoji: 🌖"
-        return lunar_phase(self.settings["lunar"], result.dt)
+        emoji, phase, age = lunar_phase(self.settings["lunar"], result.dt)
+        return f"{emoji} {phase}"
 
     def c99_C(self, result):
         "Year divided by 100 and truncated to integer (00-99): 20"
@@ -201,7 +202,7 @@ class TimeZoneDetail:
         return {
             "name": self.name or self.zone_name(dt),
             "city": self.city.to_dict() if self.city else None,
-            "utcoffset": [offset // 3600, offset % 3600 // 60, offset % 60],
+            "utcoffset": [offset // 3600, offset % 3600 // 60],
         }
 
     def zone_name(self, dt=None):
@@ -236,11 +237,13 @@ class Result:
         if offset:
             self.dt += offset
 
-    def to_dict(self):
+    def to_dict(self, settings):
+        emoji, phase, age = lunar_phase(settings["lunar"], self.dt)
         return {
             "iso": self.dt.isoformat(),
+            "lunar": {"emoji": emoji, "phase": phase, "age": round(age, 5)},
             "zone": self.zone.to_dict(self.dt),
-            "source": self.source.to_dict() if self.source else None,
+            "source": self.source.to_dict(settings) if self.source else None,
             "offset": utils.format_timedelta(self.offset, short=True) if self.offset else None,
         }
 
@@ -261,14 +264,13 @@ class When:
 
         self.tz_keys = list(self.tz_dict)
         self.local_zone = local_zone or TimeZoneDetail()
-        self.errors = {}
+
+    def formatter(self, format="default", delta=None):
+        return Formatter(self.settings, format=format, delta=delta)
 
     def get_tz(self, name):
         value = self.tz_dict[name]
         return (utils.gettz(value), name)
-
-    def error(self, key, msg):
-        self.errors.setdefault(key, []).append(msg)
 
     def find_zones(self, objs, exact=False):
         if isinstance(objs, str):
@@ -289,8 +291,7 @@ class When:
             try:
                 results = self.db.search(o, exact)
             except exceptions.DBError as err:
-                self.error("Missing DB", str(err))
-                results = []
+                raise exceptions.WhenError("Missing DB", str(err))
 
             for c in results:
                 tz, name = self.get_tz(c.tz)
@@ -363,7 +364,7 @@ class When:
         self, timestamp="", sources=None, targets=None, offset=None, exact=False, **json_kwargs
     ):
         converts = self.results(timestamp, sources, targets, offset, exact)
-        return json.dumps([convert.to_dict() for convert in converts], **json_kwargs)
+        return json.dumps([convert.to_dict(self.settings) for convert in converts], **json_kwargs)
 
     def grouped(self, results, offset=None):
         groups = {}

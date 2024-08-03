@@ -25,6 +25,30 @@ from freezegun import freeze_time
 HERE_DIR = Path(__file__).parent
 
 
+def assert_nested_items_are_equal(o1, o2):
+    assert type(o1) == type(o2)
+
+    if isinstance(o1, float):
+        assert math.isclose(o1, o2)
+
+    elif isinstance(o1, dict):
+        o1_keys = sorted(o1.keys())
+        assert (len(o1) == len(o2)) and (o1_keys == sorted(o2.keys()))
+
+        for key in o1_keys:
+            o1v = o1[key]
+            o2v = o2[key]
+            assert_nested_items_are_equal(o1v, o2v)
+
+    elif isinstance (o1, (list, tuple)):
+        assert len(o1) == len(o2)
+
+        for a, b in zip(o1, o2):
+            assert_nested_items_are_equal(a, b)
+
+    assert o1 == o2
+
+
 class TestZones:
     def test_tz_alias_offset(self):
         z = zones.get("utc+8:30")
@@ -98,7 +122,7 @@ class TestLunar:
         assert next(it) == date(2024, 6, 21)
 
     def test_full_moon(self):
-        blue = lunar.full_moon("2026.05")
+        blue = lunar.full_moon("2026-05")
         assert len(blue) == 2
 
         assert len(lunar.full_moon(2026)) == 13
@@ -121,12 +145,13 @@ class TestDB:
     def _args(self, **kwargs):
         kwargs = (
             dict(
-                db=False,
                 db_search=None,
+                db_size=None,
                 db_alias=False,
                 db_aliases=False,
                 db_force=False,
-                exact=False,
+                db_exact=False,
+                db_pop=10_000,
             )
             | kwargs
         )
@@ -155,7 +180,7 @@ class TestDB:
         [f.unlink(True) for f in files]
 
         try:
-            args = self._args(db=True, db_size=500, db_pop=10_000, db_force=True)
+            args = self._args(db_size=500, db_pop=10_000, db_force=True)
             with responses.RequestsMock() as mock:
                 rsp_city = mock.add(
                     responses.GET,
@@ -217,9 +242,9 @@ class TestDB:
         expect.unlink(True)
 
     def test_parse_search(self, db):
-        assert db.parse_search("a") == ["a", None, None]
-        assert db.parse_search("a, b") == ["a", "b", None]
-        assert db.parse_search("a, b,c") == ["a", "b", "c"]
+        assert db.parse_search("a") == ["A", None, None]
+        assert db.parse_search("a, b") == ["A", None, "B"]
+        assert db.parse_search("a, b,c") == ["A", "B", "C"]
         with pytest.raises(exceptions.DBError, match="Invalid city search expression: a,b,c,d"):
             db.parse_search("a,b,c,d")
 
@@ -239,7 +264,7 @@ class TestDB:
         assert result[0].tz == "Europe/Paris"
 
     def test_main_db_search(self, capsys, when):
-        argv = "--db-search maastricht".split()
+        argv = "--search maastricht".split()
         when_main(argv, when)
         captured = capsys.readouterr()
         assert captured.out == "2751283 Maastricht, Limburg, NL, Europe/Amsterdam\n"
@@ -259,7 +284,7 @@ class TestJSON:
     def test_json_output(self, loader, when):
         result = json.loads(when.as_json("Jan 19, 2024 22:00", sources="Lahaina", targets="Seoul"))
         expected = json.loads(loader("json"))
-        assert result == expected
+        assert_nested_items_are_equal(result, expected)
 
 
 class TestCity:
@@ -273,7 +298,7 @@ class TestCity:
 
         assert f"{city}" == str(city)
         assert f"{city:i,n,a,s,c,z,N}" == "1,føø,foo,foobar,FO,UTC,føø (foo)"
-
+ 
     def test_city_src_city_tgt(self, when):
         result = when.convert("Jan 10, 2023 4:30am", sources="New York City", targets="Seoul")
         expect = datetime(2023, 1, 10, 18, 30, tzinfo=gettz("Asia/Seoul"))
@@ -316,6 +341,16 @@ class TestMain:
         when_main(argv, when)
         assert "when_rc_toml" in capsys.readouterr().err
 
+
+    def test_source_target_no_timestr(self, capsys, when):
+        with freeze_time("2025-02-03 22:00", tz_offset=0):
+            argv = "--source utc --target paris,maine,us --exact".split()
+            when_main(argv, when)
+            out = capsys.readouterr().out
+            assert len(out.splitlines()) == 1
+            assert out.startswith("2025-02-03 17:00")
+            assert "Paris, Maine, US" in out
+
     @pytest.mark.parametrize(
         "args,exp",
         [
@@ -324,7 +359,7 @@ class TestMain:
             (["--holidays", "US"], "Halloween"),
             (["--prefix"], str(Path(exceptions.__file__).parent)),
             (["--tz-alias", "EST"], "Eastern Standard Time"),
-            (["--fullmoon", "2026.05"], "2026-05-01\n2026-05-31"),
+            (["--fullmoon", "2026-05"], "2026-05-01\n2026-05-31"),
         ],
     )
     def test_simple_actions(self, capsys, args, exp):
@@ -340,6 +375,17 @@ class TestMain:
         assert rc == 1
         assert args[1] == "~1d"
 
+    def test_group(self, capsys, when):
+        argv = "--target paris,maine,us --target paris,fr --exact --source maastricht --group".split()
+        argv.append("Feb 3, 2025 2pm")
+        when_main(argv, when)
+        out = capsys.readouterr().out
+        lines = out.splitlines()
+        assert len(lines) == 4
+        assert lines[0].startswith("2025-02-03 08:00")
+        assert lines[1].startswith(" ↳ @")
+        assert lines[2].startswith("2025-02-03 14:00")
+        assert lines[3].startswith(" ↳ @")
 
 class TestMisc:
     def test_settings(self, data_dir):
@@ -373,24 +419,23 @@ class TestMisc:
             ("%!Z", ", Pacific/Honolulu"),
             ("%!c", "Lāhaina (Lahaina), Hawaii, US, Pacific/Honolulu"),
             ("%C", "20"),
-            ("%D", "07/29/24"),
-            ("%e", "29"),
-            ("%F", "2024-07-29"),
+            ("%D", "07/31/24"),
+            ("%e", "31"),
+            ("%F", "2024-07-31"),
             ("%g", "24"),
             ("%G", "2024"),
             ("%h", "Jul"),
             ("%n", "\n"),
-            ("%r", "12:00:00 AM"),
-            ("%R", "00:00"),
+            ("%r", "02:00:00 PM"),
+            ("%R", "14:00"),
             ("%t", "\t"),
-            ("%T", "00:00:00"),
-            ("%u", "1"),
+            ("%T", "14:00:00"),
+            ("%u", "3"),
             ("%V", "31"),
         ],
     )
     def test_formatting(self, when, spec, exp):
-        with freeze_time("2024-08-01", tz_offset=0):
-            res = when.convert("July 29, 2024 10am", targets=["Lahaina"])[0]
-            fmt = core.Formatter(when.settings, spec)
-            val = fmt(res)
-            assert val == exp, f"{spec} bad, {val} != {exp}"
+        res = when.convert("2024-08-01T00:00", sources=["UTC"], targets=["Lahaina"], exact=True)[0]
+        fmt = core.Formatter(when.settings, spec)
+        val = fmt(res)
+        assert val == exp, f"{spec} bad, {val} != {exp}"

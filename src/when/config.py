@@ -39,7 +39,7 @@ Format Specifiers:
 +------+--------------------------------------------------------------------------+--------------------------+------+
 |  %M  | Minute (00-59)                                                           | 55                       |      |
 +------+--------------------------------------------------------------------------+--------------------------+------+
-|  %n  | New-line character ('\n')                                                |                          |  +   |
+|  %n  | New-line character                                                       | '\\n'                     |  +   |
 +------+--------------------------------------------------------------------------+--------------------------+------+
 |  %p  | AM or PM designation                                                     | PM                       |      |
 +------+--------------------------------------------------------------------------+--------------------------+------+
@@ -49,7 +49,7 @@ Format Specifiers:
 +------+--------------------------------------------------------------------------+--------------------------+------+
 |  %S  | Second (00-61)                                                           | 02                       |      |
 +------+--------------------------------------------------------------------------+--------------------------+------+
-|  %t  | Horizontal-tab character ('\t')                                          |                          |  +   |
+|  %t  | Horizontal-tab character                                                 | '\\t'                     |  +   |
 +------+--------------------------------------------------------------------------+--------------------------+------+
 |  %T  | ISO 8601 time format (HH:MM:SS), equivalent to %H:%M:%S                  | 14:55:02                 |  +   |
 +------+--------------------------------------------------------------------------+--------------------------+------+
@@ -97,6 +97,7 @@ Notes:
 """
 
 import os
+import sys
 from pathlib import Path
 
 import toml
@@ -221,6 +222,31 @@ grouped = " ↳ @"
 """
 
 
+def overlay(first, other):
+    if not isinstance(other, dict):
+        return first
+
+    keys = set([*first.keys(), *other.keys()])
+    result = {}
+    for key in keys:
+        if key not in other:
+            result[key] = first[key]
+            continue
+
+        if key not in first:
+            result[key] = other[key]
+            continue
+
+        if isinstance(first[key], dict):
+            result[key] = overlay(first[key], other[key])
+            continue
+
+        result[key] = other[key]
+
+    return result
+
+
+
 class Settings:
     NAME = ".whenrc.toml"
     DIRS = [Path.cwd(), Path.home()]
@@ -244,7 +270,13 @@ class Settings:
             pass
         else:
             self.read_from.append(path)
-            self.data.update(data)
+            try:
+                result = overlay(self.data, data)
+            except Exception as why:
+                print(f"Unable to settings file {path}, skipping:", file=sys.stderr)
+                print(f"{why}", file=sys.stderr)
+            else:
+                self.data = result
 
     @property
     def paths(self):

@@ -1,12 +1,35 @@
 import io
+import time
 import logging
 import zipfile
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from pathlib import Path
 
 from .. import utils
 
-logger = logging.getLogger(__name__)
+logger = utils.logger()
+GeoCity = namedtuple(
+    "GeoCity",
+    "gid,"
+    "name,"
+    "aname,"
+    "alt,"
+    "lat,"
+    "lng,"
+    "fclass,"
+    "fcode,"
+    "co,"
+    "cc2,"
+    "a1,"
+    "a2,"
+    "a3,"
+    "a4,"
+    "pop,"
+    "el,"
+    "dem,"
+    "tz,"
+    "mod"
+)
 
 DB_DIR = Path(__file__).parent
 GEONAMES_CITIES_URL_FMT = "https://download.geonames.org/export/dump/cities{}.zip"
@@ -22,12 +45,17 @@ CITY_FILE_SIZES = {
 
 @utils.timer
 def fetch_cities(size, dirname=DB_DIR):
-    assert size in CITY_FILE_SIZES
+    assert size in CITY_FILE_SIZES, f"{size} is invalid"
     txt_filename = dirname / f"cities{size}.txt"
     if txt_filename.exists():
         return txt_filename
 
-    zip_bytes = utils.fetch(GEONAMES_CITIES_URL_FMT.format(size))
+    url = GEONAMES_CITIES_URL_FMT.format(size)
+    logger.info(f"Beginning download from {url}")
+    start = time.time()
+    zip_bytes = utils.fetch(url)
+    end = time.time()
+    logger.info(f"Received {len(zip_bytes):,} bytes in {end-start:,}s")
     zip_filename = io.BytesIO(zip_bytes)
     with zipfile.ZipFile(zip_filename) as z:
         z.extract(txt_filename.name, txt_filename.parent)
@@ -77,49 +105,28 @@ def process_geonames_txt(fobj, minimum_population=15_000, admin_1=None):
     skip_if = {"PPL", "PPLL", "PPLS", "PPLF", "PPLR"}
     admin_1 = admin_1 or {}
     data = []
-    i = 0
-    for line in fobj:
+    for i, line in enumerate(fobj, 1):
         i += 1
-        (
-            gid,
-            name,
-            aname,
-            alt,
-            lat,
-            lng,
-            fclass,
-            fcode,
-            co,
-            cc2,
-            a1,
-            a2,
-            a3,
-            a4,
-            pop,
-            el,
-            dem,
-            tz,
-            mod,
-        ) = line.rstrip().split("\t")
+        ct = GeoCity(*line.rstrip().split("\t"))
 
-        pop = int(pop) if pop else 0
+        pop = int(ct.pop) if ct.pop else 0
         if (
-            (fcode in skip)
-            or (fcode in skip_if and (pop < minimum_population))
-            or (fcode == "PPLA5" and name.startswith("Marseille") and name[-1].isdigit())
+            (ct.fcode in skip)
+            or (ct.fcode in skip_if and (pop < minimum_population))
+            or (ct.fcode == "PPLA5" and ct.name.startswith("Marseille") and ct.name[-1].isdigit())
         ):
-            skipped[fcode] += 1
+            skipped[ct.fcode] += 1
             continue
 
-        fcodes[fcode] += 1
-        sub = admin_1.get(f"{co}.{a1}", a1)
-        data.append([int(gid), name, aname, co, sub, tz, int(pop)])
+        fcodes[ct.fcode] += 1
+        sub = admin_1.get(f"{ct.co}.{ct.a1}", ct.a1)
+        data.append([int(ct.gid), ct.name, ct.aname, ct.co, sub, ct.tz, pop])
 
     for title, dct in [["KEPT", fcodes], ["SKIP", skipped]]:
         for k, v in sorted(dct.items(), key=lambda kv: kv[1], reverse=True):
             logger.debug(f"{title} {k:5}: {v}")
 
-    logger.debug(f"Processed {i} lines, kept {len(data)}")
+    logger.info(f"Processed {i:,} lines, kept {len(data):,}")
     return data
 
 
@@ -139,5 +146,6 @@ def fetch_admin_1(dirname=DB_DIR):
     else:
         txt = utils.fetch(GEONAMES_ADMIN1_URL).decode()
         filename.write_text(txt)
+        logger.info(f"Downloaded {len(txt):,} bytes from {GEONAMES_ADMIN1_URL}")
 
     return load_admin1(txt)

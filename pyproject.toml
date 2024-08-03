@@ -7,7 +7,7 @@ name = "when"
 dynamic = ["version"]
 description = "Calculate and convert times across time zones and cities of significant population"
 license = { file = "LICENSE" }
-readme = { file = "README.rst", content-type = "text/x-rst" }
+readme = { file = "README.md", content-type = "text/markdown" }
 keywords = ["time", "timezone", "timezones"]
 authors = [
     { name = "David Krauth", email = "dakrauth@gmail.com" },

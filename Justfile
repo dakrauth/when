@@ -26,6 +26,7 @@ update:
     {{PIP}} install -U \
         build \
         pytest \
+        docutils \
         pytest-sugar \
         pytest-clarity \
         freezegun \
@@ -66,8 +67,7 @@ test-all:
 # Run coverage report from test suite
 cov:
     -{{BIN}}/coverage run -m pytest -vv -s
-    -{{BIN}}/coverage report --fail-under=80 src/when/timezones.py src/when/utils.py
-    {{BIN}}/coverage report
+    -{{BIN}}/coverage report --fail-under=95 --omit "__main__.py"
     {{BIN}}/coverage html
     echo HTML coverage report: {{DEV}}/coverage/index.html
     # open {{DEV}}/coverage/index.html
@@ -132,3 +132,8 @@ strftime:
         f"Format Specifiers:\n{pt.get_string()}\n\n"
         "Notes:\n* - Locale-dependent\n+ - C99 extension\n! - when extension"
     )
+
+# Execute the when command with any arbitrary arguments
+when *args:
+    @{{BIN}}/when "$@"
+

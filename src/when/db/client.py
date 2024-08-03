@@ -1,6 +1,7 @@
+import os
+import re
 import contextlib
 import logging
-import re
 import sqlite3
 from collections import namedtuple
 from pathlib import Path
@@ -8,7 +9,7 @@ from pathlib import Path
 from .. import utils
 from ..exceptions import DBError
 
-logger = logging.getLogger(__name__)
+logger = utils.logger()
 
 DB_FILENAME = Path(__file__).parent / "when.db"
 DB_SCHEMA = """
@@ -41,7 +42,7 @@ XSEARCH_QUERY = """
 SELECT c.id, c.name, c.ascii, c.sub, c.co, c.tz
 FROM city c
 WHERE
-    (c.id = :value OR c.name = :value OR c.ascii = :value)
+    (c.id = :value OR UPPER(c.name) = :value OR UPPER(c.ascii) = :value)
 """
 
 ALIASES_LISTING_QUERY = """
@@ -146,6 +147,8 @@ class DB:
             raise DBError(MISSING_DB)
 
         db = self._db
+        if os.getenv("WHENSQL", "").upper() in {"1", "YES", "ON", "TRUE"}:
+            db.set_trace_callback(print)
         try:
             yield db
         finally:
@@ -165,6 +168,10 @@ class DB:
                 [(val.strip(), gid) for val in name.split(",")],
             )
 
+    @property
+    def size(self):
+        return self.filename.stat().st_size if self.filename.exists() else 0
+
     @utils.timer
     def create_db(self, data, remove_existing=True):
         if self.filename.exists():
@@ -179,7 +186,7 @@ class DB:
             cur.executemany("INSERT INTO city VALUES (?, ?, ?, ?, ?, ?, ?)", data)
             nrows = cur.rowcount
 
-        print(f"Inserted {nrows} rows")
+        logger.info(f"Inserted {nrows:,} rows ({self.size:,} bytes)")
 
     def _execute(self, con, sql, params):
         return con.execute(sql, params).fetchall()
@@ -192,29 +199,32 @@ class DB:
         return City.from_results(results)
 
     def parse_search(self, value):
-        bits = [a.strip() for a in value.split(",")]
+        bits = [a.strip().upper() for a in value.split(",")]
         nbits = len(bits)
         if nbits > 3:
             raise DBError(f"Invalid city search expression: {value}")
 
         match nbits:
             case 1:
-                return [value, None, None]
+                return [bits[0], None, None]
             case 2:
-                return [bits[0], bits[1], None]
+                return [bits[0], None, bits[1]]
             case 3:
                 return bits
 
     def search(self, value, exact=False):
-        value, co, sub = self.parse_search(value)
+        value, sub, co = self.parse_search(value)
         if exact:
+            data = {"value": value}
             sql = XSEARCH_QUERY
             if co:
-                sql = f"{sql} AND c.co = :co AND c.sub = :sub" if sub else f"{sql} AND c.co = :co"
+                data["co"] = co
+                sql = f"{sql} AND UPPER(c.co) = :co"
+                if sub:
+                    data["sub"] = sub
+                    sql = f"{sql} AND UPPER(c.sub) = :sub"
 
-            return self._search(
-                sql, value, {"value": value, "co": co.upper() if co else co, "sub": sub}
-            )
+            return self._search(sql, value, data)
 
         like_exprs = ["c.name LIKE :like", "c.ascii LIKE :like"]
         if co:
@@ -230,7 +240,7 @@ class DB:
             {
                 "like": f"%{value}%",
                 "value": value,
-                "co": co.upper() if co else co,
-                "sub": sub.upper() if sub else sub,
+                "co": co,
+                "sub": sub,
             },
         )
