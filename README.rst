@@ -1,3 +1,4 @@
+=========
 when 🌐🕐
 =========
 
@@ -17,64 +18,101 @@ Scenario
 --------
 
 Your favorite sporting event, concert, performance, conference, or symposium is happening
-in Ulan Bator and all you know is the time of event is relative to the location city or time zone. 
-But wait! You need to know when that occurs relative to you while traveling to Seoul or Paris.
+in Ulan Bator and all you know is the time of event relative to the city or time zone. 
+So what time is that for you in your local time? What time did it or will it occur at some
+other time? What about for your friends in other locations around the world?
+
+``when`` can not only download a GeoNames_ cities database for referencing source or target locations
+by city name, but also uses all IANA time zone info, as well as most common time zone aliases (i.e.: 
+``EST`` / ``EDT`` / ``US/Eastern`` / ``America/New_York``). 
+
+Additional features include:
+
+* List common holidays for a given country and/or year (US or configurable)
+* Show dates for full moons
+* Extensive configuration options for results
 
 Installation
-------------
+============
 
-Install from PyPI::
+Install from PyPI:
+
+.. code:: bash
 
     $ pip install when
 
-or using pipx_::
+or using pipx_:
+
+.. code:: bash
 
     $ pipx install when
 
-or::
+or:
+
+.. code:: bash
 
     $ pipx install git+https://github.com/dakrauth/when.git
 
-.. _pipx: https://pypa.github.io/pipx/
+.. note::
 
-To access city names, you must install the cities database::
+    Once installed, if you wish to utilize ``when``'s full capabilities, you should
+    install the GeoNames cities database as describe next.
+
+
+
+Database installation
+---------------------
+
+To access city names, you need to install the cities database after installing the ``when`` application:
+
+.. code:: bash
 
     when --db [options]
 
-For ``options``:
+Where ``options`` are:
 
-You can specify minimum city size by adding ``--size SIZE``, where *SIZE* can be one of:
+* ``--db-size``: You can specify a database down size by using one of the following:
 
-- ``15000`` - cities with population > 15000 or country capitals
-- ``5000`` - cities with population > 5000 or seat of first-order admin division, i.e. US state
-- ``1000`` - cities with population > 1000 or seat of third order admin division
-- ``500`` - cities with population > 500 or seat of fourth-order admin division
+    - ``sm`` - cities with population > 15000 or country capitals
+    - ``md`` - cities with population > 5000 or seat of first-order admin division, i.e. US state
+    - ``lg`` - cities with population > 1000 or seat of third order admin division
+    - ``xl`` - cities with population > 500 or seat of fourth-order admin division
 
-Additionally, you can filter non-admin division seats using ``--pop POP``.
-
-The appropriate GeoNames Gazetteer is downloaded and a Sqlite database generated.
-
-Usage
------
-
-Once installed, you can search the database::
-
-    $ when --db-search New York
-    5106292, West New York, West New York, US, New Jersey, America/New_York
-    5128581, New York City, New York City, US, New York, America/New_York
+* ``--db-pop``: Filter non-admin division seats providing a minimum city population size
+* ``--db-force``
 
 
-Additionally, you can add aliases. In the example directly above, we see that New York City has
-a GeoNames ID of 5128581. Pass that to the ``--db-alias`` option along with another name that
-you would like to use::
 
-    $ when --db-alias 5128581 NYC
-    $ when --source NYC
-    2023-07-06 07:58:33-0400 (EDT, America/New_York) 187d27w (New York City, New York, US)[🌕 Full Moon]
+Database Usage
+~~~~~~~~~~~~~~
+
+* Search: ``--db-search``
+
+    Once installed, you can search the database:
+
+    .. code:: bash
+
+        $ when --db-search New York
+        5106292, West New York, West New York, US, New Jersey, America/New_York
+        5128581, New York City, New York City, US, New York, America/New_York
+
+* Aliases: ``--db-alias``
+    
+    You can add aliases for easier search. In the example directly above, we see that New York City has
+    a GeoNames ID of 5128581. Pass that to the ``--db-alias`` option along with another name that
+    you would like to use:
+
+    .. code:: bash
+
+        $ when --db-alias 5128581 NYC
+        $ when --source NYC
+        2023-07-06 07:58:33-0400 (EDT, America/New_York) 187d27w (New York City, New York, US)[🌕 Full Moon]
+
+* Alias listing: ``--db-aliases``
 
 
-Example
--------
+Examples
+========
 
 For the sake of clarity, in the following examples I am in Seoul, Korea.
 
@@ -102,23 +140,49 @@ For the sake of clarity, in the following examples I am in Seoul, Korea.
 
 
 Develop
--------
+=======
 
-Requirements Python 3.10+. Also, [just](https://github.com/casey/just) for convenience.
+Requires Python 3.10+ and just_ for convenience.
 
 .. code:: bash
 
     $ git clone git@github.com:dakrauth/when.git
     $ cd when
-    $ just
-    $ just venv
+    $ just  # or just help
+
+Set up dev env:
+
+.. code:: bash
+
+    $ just init
+
+Test, and code coverage:
+
+.. code:: bash
+
     $ just test
+    $ just cov
+
+Only run a test matching matching a given substring:
+
+.. code:: bash
+
+    $ just test -k test_sometest
+
+Interactive development:
+
+.. code:: bash
+
     $ . ./venv/bin/activate
     $ when --help
     $ when --db
 
 Further Reading
----------------
+===============
 
-[Time Zones Aren’t Offsets – Offsets Aren’t Time Zones
-](https://spin.atomicobject.com/time-zones-offsets/)
+`Time Zones Aren’t Offsets – Offsets Aren’t Time Zones`_
+
+.. _pipx: https://pypa.github.io/pipx/
+.. _just: https://github.com/casey/just
+.. _`Time Zones Aren’t Offsets – Offsets Aren’t Time Zones`: https://spin.atomicobject.com/time-zones-offsets/)
+.. _GeoNames: https://www.geonames.org/export/
