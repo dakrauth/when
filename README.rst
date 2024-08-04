@@ -2,7 +2,16 @@ when 🌐🕐
 =========
 
 .. image:: https://github.com/dakrauth/when/actions/workflows/test.yml/badge.svg
+    :alt: Tests
     :target: https://github.com/dakrauth/when
+
+.. image:: https://codecov.io/gh/dakrauth/when/branch/main/graph/badge.svg
+    :alt: Coverage
+    :target: https://codecov.io/gh/dakrauth/when
+
+.. image:: https://img.shields.io/pypi/v/when.svg
+    :alt: PyPI Version
+    :target: https://pypi.python.org/pypi/when
 
 Scenario
 --------
