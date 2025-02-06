@@ -143,9 +143,10 @@ Output formatting can be configured in multiple ways:
 * Use the `--format` option and use formatting pattern (see [Formatting](#formatting) below):
 
   ```console
-  $ WHENFORMAT='%a %b %d %Y %T %!c' when --source Seattle
-  Tue Feb 04 2025 17:40:09 Seattle, Washington, US, America/Los_Angeles
+  $ when --format '%a %b %d %Y %T %!c' --source Seattle
+  Tue Feb 04 2025 17:40:11 Seattle, Washington, US, America/Los_Angeles
   ```
+
 * Use one of the pre-configured, named formats such as `iso` and `rfc2822`:
 
   ```console
@@ -160,8 +161,8 @@ Output formatting can be configured in multiple ways:
   or prepended to the command line command, for instance:
 
   ```console
-  $ when --format '%a %b %d %Y %T %!c' --source Seattle
-  Tue Feb 04 2025 17:40:11 Seattle, Washington, US, America/Los_Angeles
+  $ WHENFORMAT='%a %b %d %Y %T %!c' when --source Seattle
+  Tue Feb 04 2025 17:40:09 Seattle, Washington, US, America/Los_Angeles
   ```
 
 ### Timezones
