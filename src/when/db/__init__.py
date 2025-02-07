@@ -1,7 +1,6 @@
 import sys
 
 from . import make, client
-from .. import utils
 
 CITY_FILE_SIZES = make.CITY_FILE_SIZES
 

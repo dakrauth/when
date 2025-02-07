@@ -176,10 +176,7 @@ def get_parser(settings):
     )
 
     parser.add_argument(
-        "--alias",
-        type=int,
-        dest="db_alias",
-        help="Create a new alias from the city id"
+        "--alias", type=int, dest="db_alias", help="Create a new alias from the city id"
     )
 
     parser.add_argument(

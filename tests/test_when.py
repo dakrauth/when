@@ -26,7 +26,7 @@ HERE_DIR = Path(__file__).parent
 
 
 def assert_nested_items_are_equal(o1, o2):
-    assert type(o1) == type(o2)
+    assert type(o1) is type(o2)
 
     if isinstance(o1, float):
         assert math.isclose(o1, o2)
@@ -40,7 +40,7 @@ def assert_nested_items_are_equal(o1, o2):
             o2v = o2[key]
             assert_nested_items_are_equal(o1v, o2v)
 
-    elif isinstance (o1, (list, tuple)):
+    elif isinstance(o1, (list, tuple)):
         assert len(o1) == len(o2)
 
         for a, b in zip(o1, o2):
@@ -102,7 +102,7 @@ class TestUtils:
             utils.datetime_from_timestamp(math.nan)
 
     def test_get_timezone_db_name(self):
-        assert utils.get_timezone_db_name(None) == None
+        assert utils.get_timezone_db_name(None) is None
         assert utils.get_timezone_db_name("/some/path/zoneinfo/foo/bar") == "foo/bar"
 
     def test_fetch(self):
@@ -182,13 +182,13 @@ class TestDB:
         try:
             args = self._args(db_size=500, db_pop=10_000, db_force=True)
             with responses.RequestsMock() as mock:
-                rsp_city = mock.add(
+                mock.add(
                     responses.GET,
                     make.GEONAMES_CITIES_URL_FMT.format(500),
                     body=loader("cities500.zip", binary=True),
                     status=200,
                 )
-                rsp_admin1 = mock.add(
+                mock.add(
                     responses.GET,
                     make.GEONAMES_ADMIN1_URL,
                     body=loader("admin1", binary=True),
@@ -298,7 +298,7 @@ class TestCity:
 
         assert f"{city}" == str(city)
         assert f"{city:i,n,a,s,c,z,N}" == "1,føø,foo,foobar,FO,UTC,føø (foo)"
- 
+
     def test_city_src_city_tgt(self, when):
         result = when.convert("Jan 10, 2023 4:30am", sources="New York City", targets="Seoul")
         expect = datetime(2023, 1, 10, 18, 30, tzinfo=gettz("Asia/Seoul"))
@@ -341,7 +341,6 @@ class TestMain:
         when_main(argv, when)
         assert "when_rc_toml" in capsys.readouterr().err
 
-
     def test_source_target_no_timestr(self, capsys, when):
         with freeze_time("2025-02-03 22:00", tz_offset=0):
             argv = "--source utc --target paris,maine,us --exact".split()
@@ -376,7 +375,9 @@ class TestMain:
         assert args[1] == "~1d"
 
     def test_group(self, capsys, when):
-        argv = "--target paris,maine,us --target paris,fr --exact --source maastricht --group".split()
+        argv = (
+            "--target paris,maine,us --target paris,fr --exact --source maastricht --group".split()
+        )
         argv.append("Feb 3, 2025 2pm")
         when_main(argv, when)
         out = capsys.readouterr().out
@@ -386,6 +387,7 @@ class TestMain:
         assert lines[1].startswith(" ↳ @")
         assert lines[2].startswith("2025-02-03 14:00")
         assert lines[3].startswith(" ↳ @")
+
 
 class TestMisc:
     def test_settings(self, data_dir):
@@ -439,3 +441,14 @@ class TestMisc:
         fmt = core.Formatter(when.settings, spec)
         val = fmt(res)
         assert val == exp, f"{spec} bad, {val} != {exp}"
+
+    def test_overlay(self):
+        def get_source_dict():
+            return {"a": 1, "b": [2, 3, 4], "c": {"d": False, "e": {"f": "spameggsandspam"}}}
+
+        src = get_source_dict()
+        result = Settings.overlay(src, {"c": {"d": True}})
+        assert src["c"]["d"] is False, "src modified"
+        assert result["c"]["d"] is True, "'d' not updated"
+
+        assert Settings.overlay(src, None) is src, "src should be itself"

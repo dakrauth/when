@@ -26,7 +26,6 @@ update:
     {{PIP}} install -U \
         build \
         pytest \
-        docutils \
         pytest-sugar \
         pytest-clarity \
         freezegun \
@@ -34,10 +33,8 @@ update:
         coverage \
         tox \
         ipython \
-        flake8 \
-        black \
         twine \
-        bump \
+        ruff \
         isort
 
 # Create a virtual environment if needed
@@ -45,7 +42,7 @@ venv:
     #!/usr/bin/env bash
     if [ ! -d {{VENV}} ]; then
         echo Creating virtual env in dir {{VENV}} ...
-        python3 -m venv {{VENV}}
+        python3 -m venv --prompt when {{VENV}}
     fi 
 
 # Create virtual environment and install / update all dev dependencies
@@ -103,13 +100,22 @@ purge: clean clean-dev rmvenv clean-build
 build:
     {{BIN}}/python -m build --outdir ./.dev/dist
 
+# Run linter and code formatter checks
+check:
+    @echo Linting...
+    -{{BIN}}/ruff check --diff src/when tests
+
+    @echo Format checks...
+    -{{BIN}}/ruff format --diff --line-length 100 src/when tests
+
 # Run linter and code formatter tools
 lint:
     @echo Linting...
-    -{{BIN}}/flake8 src/when tests
+    -{{BIN}}/ruff check src/when tests
 
     @echo Format checks...
-    -{{BIN}}/black --check --diff -l 100 src/when tests
+    -{{BIN}}/ruff format --line-length 100 src/when tests
+
 
 # Launch sqlite data browser (macOS only)
 [macos]
@@ -132,6 +138,10 @@ strftime:
         f"Format Specifiers:\n{pt.get_string()}\n\n"
         "Notes:\n* - Locale-dependent\n+ - C99 extension\n! - when extension"
     )
+
+# Run a command from the venv bin directory
+run *args:
+    {{BIN}}/"$@"
 
 # Execute the when command with any arbitrary arguments
 when *args:

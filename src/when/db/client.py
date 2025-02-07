@@ -1,10 +1,9 @@
 import os
 import re
-import contextlib
-import logging
 import sqlite3
-from collections import namedtuple
+import contextlib
 from pathlib import Path
+from collections import namedtuple
 
 from .. import utils
 from ..exceptions import DBError

@@ -1,6 +1,5 @@
 import fnmatch
 import json
-import logging
 import re
 from datetime import date, datetime, timedelta
 from itertools import chain
@@ -8,8 +7,7 @@ from itertools import chain
 from dateutil import rrule
 from dateutil.easter import easter
 
-from . import exceptions, timezones, utils
-from .config import DEFAULT_FORMAT, FORMAT_SPECIFIERS
+from . import exceptions, timezones, utils, config
 from .db import client
 from .lunar import lunar_phase
 
@@ -72,9 +70,9 @@ class Formatter:
         self.settings = settings
         self.format = self.settings["formats"]["named"].get(format, format)
 
-        self.c99_specs = [fs[0][1] for fs in FORMAT_SPECIFIERS if "+" in fs[-1]]
-        self.when_specs = [fs[0][2] for fs in FORMAT_SPECIFIERS if "!" == fs[-1]]
-        self.cond_specs = [fs[0][2] for fs in FORMAT_SPECIFIERS if "!!" == fs[-1]]
+        self.c99_specs = [fs[0][1] for fs in config.FORMAT_SPECIFIERS if "+" in fs[-1]]
+        self.when_specs = [fs[0][2] for fs in config.FORMAT_SPECIFIERS if "!" == fs[-1]]
+        self.cond_specs = [fs[0][2] for fs in config.FORMAT_SPECIFIERS if "!!" == fs[-1]]
         self.delta = delta
 
     def token_replacement(self, result, value, pattern, specs, prefix):
@@ -149,7 +147,7 @@ class Formatter:
 
     def c99_g(self, result):
         "Week-based year, last two digits (00-99): 01"
-        return f"{result.dt.year%100:02}"
+        return f"{result.dt.year % 100:02}"
 
     def c99_G(self, result):
         "Week-based year: 2001"
@@ -255,8 +253,8 @@ class Result:
 
 
 class When:
-    def __init__(self, settings, local_zone=None, db=None):
-        self.settings = settings
+    def __init__(self, settings=None, local_zone=None, db=None):
+        self.settings = settings or config.Settings()
         self.db = db or client.DB()
         self.tz_dict = {z: z for z in utils.all_zones()}
         for key in list(self.tz_dict):

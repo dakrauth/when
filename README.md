@@ -4,11 +4,33 @@
 [![PyPI](https://img.shields.io/pypi/v/when.svg)](https://pypi.python.org/pypi/when)
 
 **Scenario:** Your favorite sporting event, concert, performance, conference, or symposium is happening
-in Ulaanbaatar, Mongolia and all you know is the time of the event relative to the location.
+in Ulan Bator, Mongolia and all you have is the time of the event relative to the location -- Feb 8, 3pm.
 
-* So what time is that for you in your local time?
+* What time is it currently in Ulan Bator?
+
+  ```console
+  $ when --source "Ulan Bator"
+  2025-02-07 03:08:58+0800 (+08, Asia/Ulaanbaatar) 038d05w (Ulan Bator, Ulaanbaatar, MN, Asia/Ulaanbaatar)[🌓 First Quarter]
+  ```
+* What time is the event in your local time (PST for me, currently)?
+
+  ```console
+  $ when --source "Ulan Bator" Feb 8 3pm
+  2025-02-07 23:00:00-0800 (PST, America/Los_Angeles) 038d05w [🌓 First Quarter]
+  ```
+
 * What time did it or will it occur at some other time, past or present?
+
+  ```console
+  $ when --source "Ulan Bator" --offset +15d6h
+  2025-02-22 09:18:01+0800 (+08, Asia/Ulaanbaatar) 053d07w (Ulan Bator, Ulaanbaatar, MN, Asia/Ulaanbaatar)[🌗 Last Quarter]
+  ```
 * What about for your friends in other locations around the world?
+
+  ```console
+  $ when --exact --target London,GB  --source "Ulan Bator" Feb 8 3pm
+  2025-02-08 07:00:00+0000 (GMT, Europe/London) 039d05w (London, England, GB, Europe/London)[🌓 First Quarter]
+  ```
 
 ## Table of Contents
 
@@ -548,7 +570,7 @@ $ when --config
 
 You can refer to [Default TOML](#default-toml) below for all configuration values.
 
-To begin, lets create the file:
+To begin, create the file:
 
 ```console
 $ cat << EOF > .whenrc.toml
@@ -561,13 +583,13 @@ grouped = " ➡️ From "
 EOF
 ```
 
-Now, verify your configuration by doing:
+Now, verify the configuration by doing:
 
 ```console
 $ when --config
 ``` 
 
-At the top of the output, you should see a line similar to the following:
+At the top of the output there should be a line similar to the following:
 
 ```console
 # Read from /path/to/pwd/.whenrc.toml

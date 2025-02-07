@@ -22,9 +22,10 @@ classifiers = [
     "Operating System :: MacOS :: MacOS X",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Software Development",
     "Topic :: Software Development :: Libraries",
     "Topic :: Software Development :: Libraries :: Python Modules",
@@ -51,8 +52,13 @@ packages = ["when", "when.db"]
 [tool.setuptools.dynamic]
 version = { attr = "when.__version__"}
 
-[tool.black]
+[tool.ruff]
+cache-dir = ".dev/ruff"
 line-length = 100
+indent-width = 4
+
+[tool.ruff.lint]
+ignore = ["E741"]
 
 [tool.pytest.ini_options]
 cache_dir = "./.dev/pytest_cache"

@@ -222,31 +222,6 @@ grouped = " ↳ @"
 """
 
 
-def overlay(first, other):
-    if not isinstance(other, dict):
-        return first
-
-    keys = set([*first.keys(), *other.keys()])
-    result = {}
-    for key in keys:
-        if key not in other:
-            result[key] = first[key]
-            continue
-
-        if key not in first:
-            result[key] = other[key]
-            continue
-
-        if isinstance(first[key], dict):
-            result[key] = overlay(first[key], other[key])
-            continue
-
-        result[key] = other[key]
-
-    return result
-
-
-
 class Settings:
     NAME = ".whenrc.toml"
     DIRS = [Path.cwd(), Path.home()]
@@ -269,14 +244,14 @@ class Settings:
         except FileNotFoundError:
             pass
         else:
-            self.read_from.append(path)
             try:
-                result = overlay(self.data, data)
+                result = Settings.overlay(self.data, data)
             except Exception as why:
-                print(f"Unable to settings file {path}, skipping:", file=sys.stderr)
+                print(f"Unable to import settings file {path}, skipping:", file=sys.stderr)
                 print(f"{why}", file=sys.stderr)
             else:
                 self.data = result
+                self.read_from.append(path)
 
     @property
     def paths(self):
@@ -289,3 +264,27 @@ class Settings:
 
         out = toml.dumps(self.data)
         return f"{text}{out}"
+
+    @staticmethod
+    def overlay(first, other):
+        if not isinstance(other, dict):
+            return first
+
+        keys = set([*first.keys(), *other.keys()])
+        result = {}
+        for key in keys:
+            if key not in other:
+                result[key] = first[key]
+                continue
+
+            if key not in first:
+                result[key] = other[key]
+                continue
+
+            if isinstance(first[key], dict):
+                result[key] = Settings.overlay(first[key], other[key])
+                continue
+
+            result[key] = other[key]
+
+        return result

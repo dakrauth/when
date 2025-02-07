@@ -9,8 +9,7 @@ VERSION = tuple(int(i) for i in __version__.split("."))
 def __getattr__(name):
     if name == "when":
         from .core import When
-        from .config import Settings
 
-        return When(Settings())
+        return When()
 
     raise AttributeError(f"What is {name}?")

@@ -1,5 +1,4 @@
 import re
-import sys
 
 from dateutil.tz import gettz, tzoffset
 

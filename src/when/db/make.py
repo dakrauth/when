@@ -1,6 +1,5 @@
 import io
 import time
-import logging
 import zipfile
 from collections import defaultdict, namedtuple
 from pathlib import Path
@@ -9,26 +8,7 @@ from .. import utils
 
 logger = utils.logger()
 GeoCity = namedtuple(
-    "GeoCity",
-    "gid,"
-    "name,"
-    "aname,"
-    "alt,"
-    "lat,"
-    "lng,"
-    "fclass,"
-    "fcode,"
-    "co,"
-    "cc2,"
-    "a1,"
-    "a2,"
-    "a3,"
-    "a4,"
-    "pop,"
-    "el,"
-    "dem,"
-    "tz,"
-    "mod"
+    "GeoCity", "gid,name,aname,alt,lat,lng,fclass,fcode,co,cc2,a1,a2,a3,a4,pop,el,dem,tz,mod"
 )
 
 DB_DIR = Path(__file__).parent
@@ -55,7 +35,7 @@ def fetch_cities(size, dirname=DB_DIR):
     start = time.time()
     zip_bytes = utils.fetch(url)
     end = time.time()
-    logger.info(f"Received {len(zip_bytes):,} bytes in {end-start:,}s")
+    logger.info(f"Received {len(zip_bytes):,} bytes in {end - start:,}s")
     zip_filename = io.BytesIO(zip_bytes)
     with zipfile.ZipFile(zip_filename) as z:
         z.extract(txt_filename.name, txt_filename.parent)
