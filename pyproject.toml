@@ -1,12 +1,13 @@
 [build-system]
-requires = ["setuptools >= 61.0"]
+requires = ["setuptools >= 77.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "when"
 dynamic = ["version"]
 description = "Calculate and convert times across time zones and cities of significant population"
-license = { file = "LICENSE" }
+license = "MIT"
+license-files = ["LICENSE"]
 readme = { file = "README.md", content-type = "text/markdown" }
 keywords = ["time", "timezone", "timezones"]
 authors = [
@@ -16,7 +17,6 @@ requires-python = ">=3.10"
 classifiers = [
     "Environment :: Console",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: POSIX",
     "Operating System :: Unix",
     "Operating System :: MacOS :: MacOS X",

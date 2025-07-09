@@ -2,7 +2,7 @@
 Calculate and convert times across time zones and cities of significant population.
 """
 
-__version__ = "3.3"
+__version__ = "3.3.1"
 VERSION = tuple(int(i) for i in __version__.split("."))
 
 
