@@ -1,7 +1,9 @@
 # when 🌐🕐
 
 [![Tests](https://github.com/dakrauth/when/actions/workflows/test.yml/badge.svg)](https://github.com/dakrauth/when)
-[![PyPI](https://img.shields.io/pypi/v/when.svg)](https://pypi.python.org/pypi/when)
+[![PyPI](https://img.shields.io/pypi/v/when.svg)](https://pypi.org/project/when/)
+[![Python](https://img.shields.io/pypi/v/when.svg)](https://pypi.org/project/when/)
+
 
 **Scenario:** Your favorite sporting event, concert, performance, conference, or symposium is happening
 in Ulan Bator, Mongolia and all you have is the time of the event relative to the location -- Feb 8, 3pm.
