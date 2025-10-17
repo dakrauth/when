@@ -119,9 +119,10 @@ def datetime_from_timestamp(arg):
     try:
         dt = datetime.fromtimestamp(value)
     except ValueError as err:
-        if "out of range" not in str(err):
+        try:
+            dt = datetime.fromtimestamp(value / 1000)
+        except ValueError:
             raise WhenError(f"Invalid timestamp format: {value}")
-        dt = datetime.fromtimestamp(value / 1000)
 
     return dt
 

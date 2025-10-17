@@ -2,7 +2,7 @@
 
 [![Tests](https://github.com/dakrauth/when/actions/workflows/test.yml/badge.svg)](https://github.com/dakrauth/when)
 [![PyPI](https://img.shields.io/pypi/v/when.svg)](https://pypi.org/project/when/)
-[![Python](https://img.shields.io/pypi/v/when.svg)](https://pypi.org/project/when/)
+[![Python](https://img.shields.io/pypi/pyversions/when.svg)](https://pypi.org/project/when/)
 
 
 **Scenario:** Your favorite sporting event, concert, performance, conference, or symposium is happening
